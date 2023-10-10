@@ -1,12 +1,10 @@
 from datasets import load_dataset, Audio
-from transformers import AutoProcessor, AutoModelForCTC, pipeline, WhisperProcessor
+from transformers import pipeline
 from transformers.pipelines.pt_utils import KeyDataset
 import torch
 import torchaudio.transforms as audio_transforms
 import torchaudio
 from torchaudio import functional as F
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
 import evaluate
 import numpy as np
 import pandas as pd
@@ -14,7 +12,7 @@ from argparse import ArgumentParser
 from tqdm import tqdm
 import os
 from copy import deepcopy
-
+import string
 class UniformNoise(torch.nn.Module):
     def __init__(self, snr) -> None:
         super().__init__()
@@ -30,7 +28,7 @@ class UniformNoise(torch.nn.Module):
         #     xlen = torch.LongTensor()
         d = torch.empty_like(x).uniform_(-1, 1)
         snr = torch.zeros(x.shape[:-1], device=x.device) + self.snr
-        return F.add_noise(x, d, snr).numpy()
+        return F.add_noise(x, d, snr)
 
 class GaussianNoise(torch.nn.Module):
     def __init__(self, snr) -> None:
@@ -47,7 +45,7 @@ class GaussianNoise(torch.nn.Module):
         #     xlen = torch.LongTensor()
         d = torch.empty_like(x).normal_(0, 1)
         snr = torch.zeros(x.shape[:-1], device=x.device) + self.snr
-        return F.add_noise(x, d, snr).numpy()
+        return F.add_noise(x, d, snr)
 
 class EnvNoise(torch.nn.Module):
     seeds = [4117371, 7124264, 1832224, 8042969, 4454604, 5347561, 7059465,
@@ -134,11 +132,44 @@ class Pitch(torch.nn.Module):
         x_ =  self.transform.to(x.device)(x)
         return x_
 
+class VoiceConversion(torch.nn.Module):
+    seed = 9983137
+    def __init__(self, accents) -> None:
+        super().__init__()
+        self.accents = accents
+        from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
+        self.processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
+        self.model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts")
+        self.vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
+        ds = load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
+        self.ds = ds.filter(lambda x: x['filename'].split('_')[2] in accents)
+        self.rng = np.random.default_rng(self.seed)
+    
+    def __repr__(self):
+        return f"VoiceConversion({self.accents})"
+    
+    def forward(self, speech, text, *args, **kwargs):
+        if len(self.ds) == 0:
+            return speech
+        voice_idxs = self.rng.choice(len(self.ds))
+        speaker_embeddings = torch.tensor(self.ds[voice_idxs]["xvector"]).cuda().unsqueeze(0)
+        inputs = self.processor(text=text, return_tensors="pt")
+        speech = self.model.generate_speech(inputs["input_ids"].cuda(), speaker_embeddings, vocoder=self.vocoder)
+        return speech    
+
+def normalize_transcript(txt):
+    txt = txt.lower()
+    puncs = list(string.punctuation)
+    for pnc in puncs:
+        txt = txt.replace(pnc, '')
+    return txt
+
 NOISE_SNRS = [30, 10, 5, 1, -10]
 SPEEDUP_FACTORS = [1, 1.25, 1.5, 1.75, 2]
 SLOWDOWN_FACTORS = [1, 0.875, 0.75, 0.625, 0.5]
 PITCH_UP_STEPS = [0, 3, 6, 9, 12]
 PITCH_DOWN_STEPS = [0, -3, -6, -9, -12]
+VC_ACCENTS = [[], ['bdl', 'slt', 'rms', 'clb'], ['jmk'], ['ksp'], ['awb']]
 AUGMENTATIONS = {
     'unoise': (UniformNoise, NOISE_SNRS),
     'gnoise': (GaussianNoise, NOISE_SNRS),
@@ -148,71 +179,93 @@ AUGMENTATIONS = {
     'pitch_up': (Pitch, PITCH_UP_STEPS),
     'pitch_down': (Pitch, PITCH_DOWN_STEPS),
     'rir': (RIR, [None]),
+    'voice_conversion': (VoiceConversion, VC_ACCENTS)
 }
 
-parser = ArgumentParser()
-parser.add_argument('--model_name', default="openai/whisper-small")
-parser.add_argument('--dataset', default="librispeech_asr")
-parser.add_argument('--split', default='test.clean')
-parser.add_argument('--batch_size', type=int, default=128)
-parser.add_argument('--augmentation')
-parser.add_argument('--severity')
-parser.add_argument('--output_dir', default='outputs')
-parser.add_argument('--model_parallelism', action='store_true')
-args = parser.parse_args()
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('--model_name', default="openai/whisper-small")
+    parser.add_argument('--dataset', default="librispeech_asr")
+    parser.add_argument('--split', default='test.clean')
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--augmentation')
+    parser.add_argument('--severity')
+    parser.add_argument('--output_dir', default='outputs')
+    parser.add_argument('--model_parallelism', action='store_true')
+    args = parser.parse_args()
 
-if args.augmentation:
-    aug, sev = args.augmentation.split(':', 1)
-    sev = int(sev)
-    assert sev <= 4
-else:
-    aug = None
-    sev = 0
-if aug in AUGMENTATIONS:
-    fn, sev_args = AUGMENTATIONS[aug]
-    transform = fn(sev_args[sev])
-else:
-    transform = lambda x: x
-print(transform)
-def transform_(batch):
-    for audio in batch['audio']:
-        audio['array'] = transform(audio['array'])
-    return batch
+    if args.augmentation:
+        aug, sev = args.augmentation.split(':', 1)
+        sev = int(sev)
+        assert sev <= 4
+    else:
+        aug = None
+        sev = 0
+    if aug in AUGMENTATIONS:
+        fn, sev_args = AUGMENTATIONS[aug]
+        transform = fn(sev_args[sev])
+    else:
+        transform = lambda x: x
+    print(transform)
+    def transform_(batch):
+        # if isinstance(transform, VoiceConversion):
+        #     new_audios = transform([x['array'] for x in batch['audio']], batch['text'])
+        #     for audio, na in zip(batch['audio'], new_audios):
+        #         audio['array'] = na
+        # else:
+        if isinstance(transform, VoiceConversion):
+            T = deepcopy(transform).cuda()
+        else:
+            T = transform
+        for audio, text in zip(batch['audio'], batch['text']):
+            if isinstance(transform, VoiceConversion):
+                audio['array'] = T(audio['array'], text)
+            else:
+                audio['array'] = T(audio['array'])
+        if isinstance(transform, VoiceConversion):
+            del T
+        return batch
 
-dataset = load_dataset(args.dataset, split=args.split)
-dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-print(dataset[0])
-dataset = dataset.map(transform_, batched=True, batch_size=128, num_proc=4, load_from_cache_file=False)
-dataset = dataset.with_format('np')
+    dataset = load_dataset(args.dataset, split=args.split)
+    dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
+    nproc = 8 if isinstance(transform, VoiceConversion) else 4
+    print(dataset[0])
+    dataset = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=isinstance(transform, VoiceConversion))
+    dataset = dataset.with_format('np')
 
-wer_metric = evaluate.load("wer")
-cer_metric = evaluate.load("cer")
+    wer_metric = evaluate.load("wer")
+    cer_metric = evaluate.load("cer")
 
-if args.model_parallelism: 
-    device_kwargs = {'device_map': 'auto'}
-else:
-    device_kwargs = {'device': 'cuda:0'}
-pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs)
+    if args.model_parallelism: 
+        device_kwargs = {'device_map': 'auto'}
+    else:
+        device_kwargs = {'device': 'cuda:0'}
+    pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs)
 
-output_rows = []
-t = tqdm(zip(pipe(KeyDataset(dataset, "audio")), dataset))
-for out, inp in t:
-    hyp = out['text'].upper()
-    ref = inp['text'].upper()
-    wer = wer_metric.compute(references=[ref], predictions=[hyp])
-    cer = cer_metric.compute(references=[ref], predictions=[hyp])
-    r = {
-        'reference': ref,
-        'prediction': hyp,
-        'wer': wer,
-        'cer': cer
-    }
-    output_rows.append(r)
-    t.set_postfix(wer=wer, cer=cer)
+    output_rows = []
+    t = tqdm(zip(pipe(KeyDataset(dataset, "audio")), dataset))
+    for out, inp in t:
+        hyp = out['text'].upper()
+        ref = inp['text'].upper()
+        
+        ref = normalize_transcript(ref)
+        hyp = normalize_transcript(hyp)
 
-odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset}'
-if not os.path.exists(odir):
-    os.makedirs(odir)
+        wer = wer_metric.compute(references=[ref], predictions=[hyp])
+        cer = cer_metric.compute(references=[ref], predictions=[hyp])
+        r = {
+            'id': inp['id'],
+            'reference': ref,
+            'prediction': hyp,
+            'wer': wer,
+            'cer': cer
+        }
+        output_rows.append(r)
+        t.set_postfix(wer=wer, cer=cer)
 
-df = pd.DataFrame(output_rows)
-df.to_csv(f'{odir}/{aug}-{sev}.tsv', sep='\t')
+    odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset}'
+    if not os.path.exists(odir):
+        os.makedirs(odir)
+
+    df = pd.DataFrame(output_rows)
+    df.to_csv(f'{odir}/{aug}-{sev}.tsv', sep='\t')
