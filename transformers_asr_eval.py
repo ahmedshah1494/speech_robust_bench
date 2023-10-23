@@ -80,15 +80,30 @@ class EnvNoise(torch.nn.Module):
 
 class RIR(torch.nn.Module):
     seed = 9983137
-    def __init__(self, *args, rir_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/RIRS_NOISES/simulated_rirs') -> None:
+    def __init__(self, sev, rir_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/RIRS_NOISES/simulated_rirs', rir_snr_file='rir_snr.csv') -> None:
         super().__init__()
+        assert sev <= 4
         self.rir_dir = rir_dir
         # self.rir_files = [x for x in os.listdir(rir_dir) if x.endswith('.wav')]
-        self.rir_files = []
+        rir_files = []
         for root, dirs, files in os.walk(rir_dir):
             for name in files:
                 if name.endswith('wav'):
-                    self.rir_files.append(os.path.join(root, name))
+                    rir_files.append(os.path.join(root, name))
+        rir_snr_df = pd.read_csv(rir_snr_file)
+        unique_snrs = rir_snr_df['snr'].unique()
+        snr_sevs = np.linspace(unique_snrs.max(), unique_snrs.min(), 5)
+        print(snr_sevs, snr_sevs[sev])
+        if sev == 0:
+            filtered_rows = rir_snr_df[rir_snr_df['snr'] >= snr_sevs[sev]]
+        elif sev == 1:
+            filtered_rows = rir_snr_df[(snr_sevs[sev] <= rir_snr_df['snr']) & (rir_snr_df['snr'] <= snr_sevs[sev-1])]
+        else:
+            filtered_rows = rir_snr_df[(snr_sevs[sev] <= rir_snr_df['snr']) & (rir_snr_df['snr'] < snr_sevs[sev-1])]
+        self.rir_files = filtered_rows['filename'].values
+        print(filtered_rows["snr"].min(), filtered_rows["snr"].max())
+        print(f'using {len(self.rir_files)} rirs with average SNR={filtered_rows["snr"].mean()}')
+        # {x['filename']: x['snr'] for x in pd.read_csv(rir_snr_file).to_dict('records')}
         self.rng = np.random.default_rng(self.seed)
 
     def forward(self, x, *args, **kwargs):
@@ -155,7 +170,23 @@ class VoiceConversion(torch.nn.Module):
         speaker_embeddings = torch.tensor(self.ds[voice_idxs]["xvector"]).cuda().unsqueeze(0)
         inputs = self.processor(text=text, return_tensors="pt")
         speech = self.model.generate_speech(inputs["input_ids"].cuda(), speaker_embeddings, vocoder=self.vocoder)
-        return speech    
+        return speech
+    
+class Compose(torch.nn.Module):
+    def __init__(self, transforms) -> None:
+        super().__init__()
+        self.transforms = torch.nn.ModuleList(transforms)
+    
+    def __repr__(self):
+        return f"Compose({self.transforms})"
+    
+    def forward(self, speech, text, *args, **kwargs):
+        for t in self.transforms:
+            if isinstance(t, VoiceConversion):
+                speech = t(speech, text)
+            else:
+                x = t(speech)
+        return x
 
 def normalize_transcript(txt):
     txt = txt.lower()
@@ -178,7 +209,7 @@ AUGMENTATIONS = {
     'slowdown': (Speed, SLOWDOWN_FACTORS),
     'pitch_up': (Pitch, PITCH_UP_STEPS),
     'pitch_down': (Pitch, PITCH_DOWN_STEPS),
-    'rir': (RIR, [None]),
+    'rir': (RIR, [0,1,2,3,4]),
     'voice_conversion': (VoiceConversion, VC_ACCENTS)
 }
 
@@ -186,13 +217,14 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--model_name', default="openai/whisper-small")
     parser.add_argument('--dataset', default="librispeech_asr")
+    parser.add_argument('--subset', default=None)
     parser.add_argument('--split', default='test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--augmentation')
+    parser.add_argument('--augmentation', type=str)
     parser.add_argument('--severity')
     parser.add_argument('--output_dir', default='outputs')
     parser.add_argument('--model_parallelism', action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args()     
 
     if args.augmentation:
         aug, sev = args.augmentation.split(':', 1)
@@ -201,24 +233,33 @@ if __name__ == '__main__':
     else:
         aug = None
         sev = 0
-    if aug in AUGMENTATIONS:
+    
+    if aug is None:
+        transform = lambda x: x
+    elif "+" in aug:
+        augs = aug.split('+')
+        augfns = []
+        for a in augs:
+            fn, sev_args = AUGMENTATIONS[a]
+            augfns.append(fn(sev_args[min(sev, len(sev_args)-1)]))
+        transform = Compose(augfns)
+    elif aug in AUGMENTATIONS:
         fn, sev_args = AUGMENTATIONS[aug]
         transform = fn(sev_args[sev])
-    else:
-        transform = lambda x: x
-    print(transform)
+
+    print(transform, aug, sev)
     def transform_(batch):
         # if isinstance(transform, VoiceConversion):
         #     new_audios = transform([x['array'] for x in batch['audio']], batch['text'])
         #     for audio, na in zip(batch['audio'], new_audios):
         #         audio['array'] = na
         # else:
-        if isinstance(transform, VoiceConversion):
+        if isinstance(transform, (VoiceConversion, Compose)):
             T = deepcopy(transform).cuda()
         else:
             T = transform
         for audio, text in zip(batch['audio'], batch['text']):
-            if isinstance(transform, VoiceConversion):
+            if isinstance(transform, (VoiceConversion, Compose)):
                 audio['array'] = T(audio['array'], text)
             else:
                 audio['array'] = T(audio['array'])
@@ -226,24 +267,92 @@ if __name__ == '__main__':
             del T
         return batch
 
-    dataset = load_dataset(args.dataset, split=args.split)
+    dataset = load_dataset(args.dataset, args.subset, split=args.split)
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
     nproc = 8 if isinstance(transform, VoiceConversion) else 4
     print(dataset[0])
-    dataset = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=isinstance(transform, VoiceConversion))
+    if aug is not None:
+        dataset = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=isinstance(transform, VoiceConversion))
     dataset = dataset.with_format('np')
 
     wer_metric = evaluate.load("wer")
     cer_metric = evaluate.load("cer")
 
-    if args.model_parallelism: 
-        device_kwargs = {'device_map': 'auto'}
-    else:
-        device_kwargs = {'device': 'cuda:0'}
-    pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs)
+    if args.model_name == 'deepspeech':
+        from deepspeech_pytorch.model import DeepSpeech
+        from deepspeech_pytorch.loader.data_loader import ChunkSpectrogramParser
+        from deepspeech_pytorch.decoder import GreedyDecoder
 
+        model = DeepSpeech.load_from_checkpoint('/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/deepspeech_ckps/librispeech_pretrained_v3.ckpt')
+        parser = ChunkSpectrogramParser(audio_conf=model.spect_cfg)
+        def extract_features(x):
+            waveform = x['audio']['array']
+            spec = list(parser.parse_audio(waveform))[0]
+            x['spec'] = spec
+            x['lengths'] = spec.shape[1]
+            return x
+        dataset = dataset.map(extract_features, batched=False, num_proc=4)
+        
+        def collate_fn(batch):
+            specs = [torch.FloatTensor(batch[i]['spec']).transpose(0,1) for i in range(len(batch))]
+            lengths = torch.LongTensor([(batch[i]['lengths']) for i in range(len(batch))])
+            specs = torch.nn.utils.rnn.pad_sequence(specs, batch_first=True).unsqueeze(1).transpose(2,3)
+            return {'spec': specs, 'lengths': lengths}
+        
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=4, shuffle=False)
+        decoder = GreedyDecoder(model.labels)
+        def transcribe(dataloader):
+            for batch in dataloader:
+                length_order = torch.argsort(batch['lengths'], descending=True)
+                reverse_length_order = torch.argsort(length_order)
+                batch['spec'] = batch['spec'][length_order]
+                batch['lengths'] = batch['lengths'][length_order]
+                out, lens, _ = model(batch['spec'].cuda(), batch['lengths'].cuda())                
+                decoded_output, decoded_offsets = decoder.decode(out, lens)
+                for i in reverse_length_order:
+                    yield {'text': decoded_output[i][0]}
+        pipe = transcribe(dataloader)
+    elif args.model_name == 'rnnt':
+        import torchaudio
+        from torchaudio.pipelines import EMFORMER_RNNT_BASE_LIBRISPEECH
+
+        feature_extractor = EMFORMER_RNNT_BASE_LIBRISPEECH.get_feature_extractor()
+        decoder = EMFORMER_RNNT_BASE_LIBRISPEECH.get_decoder().cuda()
+        token_processor = EMFORMER_RNNT_BASE_LIBRISPEECH.get_token_processor()
+
+        def extract_features(x):
+            waveform = torch.FloatTensor(x['audio']['array'])
+            spec, length = feature_extractor(waveform)
+            x['spec'] = spec
+            x['lengths'] = length[0]
+            return x
+        dataset = dataset.map(extract_features, batched=False, num_proc=4)
+
+        def collate_fn(batch):
+            specs = [torch.FloatTensor(batch[i]['spec']) for i in range(len(batch))]
+            lengths = torch.LongTensor([(batch[i]['lengths']) for i in range(len(batch))])
+            specs = torch.nn.utils.rnn.pad_sequence(specs, batch_first=True)
+            return {'spec': specs, 'lengths': lengths}      
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=4, shuffle=False)
+        
+        def transcribe(dataloader):
+            for batch in dataloader:
+                with torch.no_grad():
+                    for feature, length in zip(batch['spec'].cuda(), batch['lengths'].cuda()):
+                        hypotheses = decoder(feature.unsqueeze(0), length.unsqueeze(0), 1)
+                        text = token_processor(hypotheses[0][0])
+                        yield {'text': text}
+        pipe = transcribe(dataloader)
+    else:
+        if args.model_parallelism: 
+            device_kwargs = {'device_map': 'auto'}
+        else:
+            device_kwargs = {'device': 'cuda:0'}
+        pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs)
+        pipe = pipe(KeyDataset(dataset, "audio"))
+    
     output_rows = []
-    t = tqdm(zip(pipe(KeyDataset(dataset, "audio")), dataset))
+    t = tqdm(zip(pipe, dataset))
     for out, inp in t:
         hyp = out['text'].upper()
         ref = inp['text'].upper()
@@ -263,7 +372,7 @@ if __name__ == '__main__':
         output_rows.append(r)
         t.set_postfix(wer=wer, cer=cer)
 
-    odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset}'
+    odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset.split("/")[-1]}'
     if not os.path.exists(odir):
         os.makedirs(odir)
 
