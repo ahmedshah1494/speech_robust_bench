@@ -221,7 +221,7 @@ if __name__ == '__main__':
     parser.add_argument('--split', default='test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--augmentation', type=str)
-    parser.add_argument('--severity')
+    parser.add_argument('--language', default='english')
     parser.add_argument('--output_dir', default='outputs')
     parser.add_argument('--model_parallelism', action='store_true')
     args = parser.parse_args()     
@@ -348,7 +348,14 @@ if __name__ == '__main__':
             device_kwargs = {'device_map': 'auto'}
         else:
             device_kwargs = {'device': 'cuda:0'}
-        pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs)
+        if ('whisper' in args.model_name) and (args.language != 'english'):
+            from transformers import WhisperProcessor
+            processor = WhisperProcessor.from_pretrained(args.model_name)
+            gen_kwargs = {'forced_decoder_ids': processor.get_decoder_prompt_ids(language=args.language, task="transcribe")}
+            print(gen_kwargs)
+        else:
+            gen_kwargs = {}
+        pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs, generate_kwargs=gen_kwargs)
         pipe = pipe(KeyDataset(dataset, "audio"))
     
     output_rows = []
