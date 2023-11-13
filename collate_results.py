@@ -10,6 +10,42 @@ for root, dirs, files in os.walk(results_dir):
         if name.endswith('tsv'):
             result_files.append(os.path.join(root, name))
 
+def get_metric_from_adv_file(fname):
+    with open(fname, 'r') as f:
+        metric = float(f.readlines()[0].split()[1])/100
+    return metric
+
+adv_results_dir = 'robust_speech/advattack_data_and_results/attacks'
+adv_results = []
+snr_to_sev = [50, 40, 30, 20]
+for root, dirs, files in os.walk(adv_results_dir):
+    if 'log.txt' in files:        
+        model = root.split('/')[-2]
+        sev = snr_to_sev.index(int(model.split('-')[-1]))+1
+        model = '-'.join(model.split('-')[:-1])
+        augmentation = root.split('/')[-3]
+        dataset = 'librispeech_asr'
+        r = {
+            'model': model,
+            'dataset': dataset,
+            'augmentation': augmentation,
+            'severity': sev,
+            'WER': get_metric_from_adv_file(os.path.join(root, 'wer_adv_test-clean-100.txt')),
+            'CER': get_metric_from_adv_file(os.path.join(root, 'cer_adv_test-clean-100.txt')),
+        }
+        adv_results.append(r)
+        # r = {
+        #     'model': model,
+        #     'dataset': dataset,
+        #     'augmentation': None,
+        #     'severity': 0,
+        #     'WER': get_metric_from_adv_file(os.path.join(root, 'wer_test-clean-100.txt')),
+        #     'CER': get_metric_from_adv_file(os.path.join(root, 'cer_test-clean-100.txt')),
+        # }
+        # adv_results.append(r)
+adv_results_df = pd.DataFrame(adv_results)
+adv_results_df = adv_results_df.drop_duplicates()
+
 results = []
 result_dfs = []
 for rfp in result_files:
@@ -26,6 +62,7 @@ for rfp in result_files:
     df['model'] = model
     df['augmentation'] = noise
     df['severity'] = sev
+    df['dataset'] = dataset
     result_dfs.append(df)
 
     nwords = np.array([len(ref.split()) for ref in df['reference']])
@@ -54,8 +91,9 @@ for rfp in result_files:
     results.append(r)
 
 results_df = pd.DataFrame(results)
-results_df.to_csv('collated_results_all_models-normedtrans.csv')
-results_df.to_latex('collated_results_all_models-normedtrans.tex')
+results_df = pd.concat([results_df, adv_results_df])
+results_df.to_csv('results/collated_results_all_models-normedtrans.csv')
+results_df.to_latex('results/collated_results_all_models-normedtrans.tex')
 
 full_result_df = pd.concat(result_dfs)
-full_result_df.to_csv('full_result_df-normedtrans.csv')
+full_result_df.to_csv('results/full_result_df-normedtrans.csv')
