@@ -21,9 +21,13 @@ def normalize_transcript(txt):
 
 def load_augmentation(args):
     if args.augmentation:
-        aug, sev = args.augmentation.split(':', 1)
-        sev = int(sev)
-        assert sev <= 4
+        if ':' in args.augmentation:
+            aug, sev = args.augmentation.split(':', 1)
+            sev = int(sev)
+            assert sev <= 4
+        else:
+            aug = args.augmentation
+            sev = None
     else:
         aug = None
         sev = 0
@@ -39,7 +43,14 @@ def load_augmentation(args):
         transform = Compose(augfns)
     elif aug in AUGMENTATIONS:
         fn, sev_args = AUGMENTATIONS[aug]
-        transform = fn(sev_args[sev])
+        if sev is None:
+            transform = fn(args.severity)
+            sev = args.severity
+        else:
+            if issubclass(fn, UniversalAdversarialPerturbation):
+                transform = fn(sev_args[sev], args.universal_delta_path)
+            else:    
+                transform = fn(sev_args[sev])
     return transform, aug, sev
 
 def transform_dataset(dataset, transform):
@@ -87,7 +98,7 @@ def transform_dataset_for_ptest(dataset, transform, num_samples, num_perturb_per
             datasets.append(dataset)
         else:
             dataset_ = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=False,)
-            if not isinstance(transform, (GaussianNoise, UniformNoise)):
+            if not isinstance(transform, (GaussianNoise, UniformNoise, EnvNoise)):
                 dataset = dataset_
             datasets.append(dataset_)
         # print(datasets[0][0]['audio']['array'], datasets[-1][0]['audio']['array'])
@@ -98,6 +109,7 @@ def transform_dataset_for_ptest(dataset, transform, num_samples, num_perturb_per
     return dataset
 
 NOISE_SNRS = [30, 10, 5, 1, -10]
+ADV_SNRS = [50, 40, 30, 20, 10]
 SPEEDUP_FACTORS = [1, 1.25, 1.5, 1.75, 2]
 SLOWDOWN_FACTORS = [1, 0.875, 0.75, 0.625, 0.5]
 PITCH_UP_STEPS = [0, 3, 6, 9, 12]
@@ -111,6 +123,7 @@ AUGMENTATIONS = {
     'slowdown': (Speed, SLOWDOWN_FACTORS),
     'pitch_up': (Pitch, PITCH_UP_STEPS),
     'pitch_down': (Pitch, PITCH_DOWN_STEPS),
+    'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
     'rir': (RIR, [0,1,2,3,4]),
     'voice_conversion': (VoiceConversion, VC_ACCENTS)
 }
@@ -123,12 +136,15 @@ if __name__ == '__main__':
     parser.add_argument('--split', default='test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--augmentation', type=str)
+    parser.add_argument('--severity', type=float)
+    parser.add_argument('--universal_delta_path', type=str)
     parser.add_argument('--language', default='english')
     parser.add_argument('--output_dir', default='outputs')
     parser.add_argument('--model_parallelism', action='store_true')
     parser.add_argument('--run_perturb_robustness_eval', action='store_true')
     parser.add_argument('--n_perturb_per_sample', type=int, default=30)
     parser.add_argument('--n_samples', type=int, default=500)
+    parser.add_argument('--overwrite_result_file', action='store_true')
     args = parser.parse_args()
 
     transform, aug, sev = load_augmentation(args)
@@ -209,17 +225,27 @@ if __name__ == '__main__':
         pipe = transcribe(dataloader)
     else:
         if args.model_parallelism: 
-            device_kwargs = {'device_map': 'auto'}
+            kwargs = {'device_map': 'auto'}
         else:
-            device_kwargs = {'device': 'cuda:0'}
+            kwargs = {'device': 'cuda:0'}
+        model = args.model_name
+        gen_kwargs = {}
         if ('whisper' in args.model_name) and (args.language != 'english'):
             from transformers import WhisperProcessor
             processor = WhisperProcessor.from_pretrained(args.model_name)
             gen_kwargs = {'forced_decoder_ids': processor.get_decoder_prompt_ids(language=args.language, task="transcribe")}
             print(gen_kwargs)
-        else:
-            gen_kwargs = {}
-        pipe = pipeline("automatic-speech-recognition", model=args.model_name, batch_size=args.batch_size, torch_dtype=torch.float16, **device_kwargs, generate_kwargs=gen_kwargs)
+        if ('mms' in args.model_name) and (args.language != 'english'):
+            from transformers import Wav2Vec2ForCTC, AutoProcessor
+            processor = AutoProcessor.from_pretrained(args.model_name, torch_dtype=torch.float16)
+            model = Wav2Vec2ForCTC.from_pretrained(args.model_name, torch_dtype=torch.float16)
+            processor.tokenizer.set_target_lang(args.language)
+            kwargs['tokenizer'] = processor.tokenizer
+            kwargs['feature_extractor'] = args.model_name
+            model.load_adapter(args.language)
+            model = model.to(torch.float16)
+        print(kwargs)
+        pipe = pipeline("automatic-speech-recognition", model=model, batch_size=args.batch_size, torch_dtype=torch.float16, **kwargs, generate_kwargs=gen_kwargs)
         pipe = pipe(KeyDataset(dataset, "audio"))
     
     output_rows = []
@@ -250,7 +276,16 @@ if __name__ == '__main__':
         os.makedirs(odir)
 
     df = pd.DataFrame(output_rows)
+    if args.augmentation == 'universal_adv':
+        aug = f'{aug}_{args.universal_delta_path.split("/")[-3]}'
     ofn = f'{aug}-{sev}'
     if args.run_perturb_robustness_eval:
         ofn = f'{ofn}-pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
-    df.to_csv(f'{odir}/{ofn}.tsv', sep='\t')
+    ofp = f'{odir}/{ofn}.tsv'
+    if not args.overwrite_result_file:
+        i = 1
+        ofp = f'{odir}/{ofn}_{i}.tsv'
+        while os.path.exists(ofp):
+            i += 1
+            ofp = f'{odir}/{ofn}_{i}.tsv'
+    df.to_csv(ofp, sep='\t')
