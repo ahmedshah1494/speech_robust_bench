@@ -1,5 +1,7 @@
+import time
 import torch
 import torchaudio.transforms as audio_transforms
+from datasets import load_dataset
 import torchaudio
 from torchaudio import functional as F
 import numpy as np
@@ -52,7 +54,8 @@ class EnvNoise(torch.nn.Module):
         self.snr = snr
         self.noise_dir = noise_dir
         self.noise_files = [x for x in os.listdir(noise_dir) if x.endswith('.wav')]
-        seed = self.seeds[int(snr % len(self.seeds))]
+        # seed = self.seeds[int(snr % len(self.seeds))]
+        seed = time.time_ns()
         self.rng = np.random.default_rng(seed)
     
     def __repr__(self):
@@ -72,7 +75,34 @@ class EnvNoise(torch.nn.Module):
         snr = torch.zeros(x.shape[:-1], device=x.device) + self.snr
         x_ = F.add_noise(x, noise, snr)
         return x_
+    
+class EnvNoiseDeterministic(EnvNoise):
+    def __init__(self, snr, noise_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/MS-SNSD/noise_test') -> None:
+        super().__init__(snr, noise_dir)
+        self.noise_files = self.rng.choice(self.noise_files, 1)
 
+class UniversalAdversarialPerturbation(torch.nn.Module):
+    def __init__(self, snr, path_to_noise='/jet/home/mshah1/projects/audio_robustness_benchmark/robust_speech/advattack_data_and_results/attacks/universal/deepspeech-1/1002/CKPT+2023-11-21+04-27-45+00/delta.ckpt') -> None:
+        super().__init__()
+        self.perturbation = torch.load(path_to_noise)['tensor']
+        self.snr = snr
+    
+    def __repr__(self):
+        return f'UniversalAdversarialPerturbation(snr={self.snr})'
+    
+    def forward(self, x, *args, **kwargs):
+        if not isinstance(x, torch.Tensor):
+            x = torch.FloatTensor(x)
+        xlen = x.shape[-1]
+        noise_raw = self.perturbation
+        noise = noise_raw[..., :xlen]
+        while noise.shape[-1] < xlen:
+            noise = torch.cat([noise, noise], -1)
+            noise = noise[..., :xlen]
+        noise = noise.reshape(-1).to(x.device)
+        snr = torch.zeros(x.shape[:-1], device=x.device) + self.snr
+        x_ = F.add_noise(x, noise, snr)
+        return x_
 
 class RIR(torch.nn.Module):
     seed = 9983137
@@ -100,7 +130,9 @@ class RIR(torch.nn.Module):
         print(filtered_rows["snr"].min(), filtered_rows["snr"].max())
         print(f'using {len(self.rir_files)} rirs with average SNR={filtered_rows["snr"].mean()}')
         # {x['filename']: x['snr'] for x in pd.read_csv(rir_snr_file).to_dict('records')}
-        self.rng = np.random.default_rng(self.seed)
+        # self.rng = np.random.default_rng(self.seed)
+        seed = time.time_ns()
+        self.rng = np.random.default_rng(seed)
 
     def forward(self, x, *args, **kwargs):
         if not isinstance(x, torch.Tensor):
@@ -142,6 +174,20 @@ class Pitch(torch.nn.Module):
         xlen = x.shape[-1]
         x_ =  self.transform.to(x.device)(x)
         return x_
+    
+class ResamplingNoise(torch.nn.Module):
+    def __init__(self, factor, orig_freq=16000) -> None:
+        super().__init__()
+        print(f'factor={factor}', f'orig_freq={orig_freq}', f'new_freq={int(factor*orig_freq)}')
+        self.ds = torchaudio.transforms.Resample(int(orig_freq*factor), orig_freq)
+        self.us = torchaudio.transforms.Resample(orig_freq, int(orig_freq*factor))
+    
+    def forward(self, x, *args, **kwargs):
+        if not isinstance(x, torch.Tensor):
+            x = torch.FloatTensor(x)
+        x_ = self.ds(self.us(x))
+        return x_
+
 
 class VoiceConversion(torch.nn.Module):
     seed = 9983137
@@ -163,9 +209,10 @@ class VoiceConversion(torch.nn.Module):
         if len(self.ds) == 0:
             return speech
         voice_idxs = self.rng.choice(len(self.ds))
-        speaker_embeddings = torch.tensor(self.ds[voice_idxs]["xvector"]).cuda().unsqueeze(0)
+        device = self.parameters().__next__().device
+        speaker_embeddings = torch.tensor(self.ds[voice_idxs]["xvector"]).to(device).unsqueeze(0)
         inputs = self.processor(text=text, return_tensors="pt")
-        speech = self.model.generate_speech(inputs["input_ids"].cuda(), speaker_embeddings, vocoder=self.vocoder)
+        speech = self.model.generate_speech(inputs["input_ids"].to(device), speaker_embeddings, vocoder=self.vocoder)
         return speech
     
 class Compose(torch.nn.Module):
@@ -176,10 +223,10 @@ class Compose(torch.nn.Module):
     def __repr__(self):
         return f"Compose({self.transforms})"
     
-    def forward(self, speech, text, *args, **kwargs):
+    def forward(self, speech, *args, **kwargs):
         for t in self.transforms:
             if isinstance(t, VoiceConversion):
-                speech = t(speech, text)
+                speech = t(speech, args[0])
             else:
                 x = t(speech)
         return x
