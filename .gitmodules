@@ -1,0 +1,6 @@
+[submodule "robust_speech"]
+	path = robust_speech
+	url = https://github.com/ahmedshah1494/robust_speech.git
+[submodule "deepspeech.pytorch"]
+	path = deepspeech.pytorch
+	url = https://github.com/ahmedshah1494/deepspeech.pytorch.git
