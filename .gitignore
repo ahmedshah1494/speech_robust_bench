@@ -1,0 +1,11 @@
+examples/*
+images/*
+LibriSpeech/*
+*.csv
+*.txt
+*.png
+*.wav
+*.ipynb
+*.tsv
+*.tex
+*.hd5
