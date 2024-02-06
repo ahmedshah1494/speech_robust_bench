@@ -49,7 +49,7 @@ class EnvNoise(torch.nn.Module):
                 3774329, 1412644, 1519183, 6969162, 7885564, 3707167, 5816443,
                 9477077, 9822365, 7482569, 7792808, 9120101, 5467473]
     
-    def __init__(self, snr, noise_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/MS-SNSD/noise_test') -> None:
+    def __init__(self, snr, noise_dir=f'{os.environs["SRB_ROOT"]}/MS-SNSD/noise_test') -> None:
         super().__init__()
         self.snr = snr
         self.noise_dir = noise_dir
@@ -78,13 +78,13 @@ class EnvNoise(torch.nn.Module):
     
 class EnvNoiseESC50(EnvNoise):
     def __init__(self, snr) -> None:
-        super().__init__(snr, '/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/ESC-50-master/audio')
+        super().__init__(snr, f'{os.environs["SRB_ROOT"]}/ESC-50-master/audio')
     
     def __repr__(self):
         return f"EnvNoiseESC50({self.snr} dB)"
     
 class EnvNoiseDeterministic(EnvNoise):
-    def __init__(self, snr, noise_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/MS-SNSD/noise_test') -> None:
+    def __init__(self, snr, noise_dir=f'{os.environs["SRB_ROOT"]}/MS-SNSD/noise_test') -> None:
         super().__init__(snr, noise_dir)
         seed = time.time_ns()+os.getpid()
         rng = np.random.default_rng(seed)
@@ -115,7 +115,7 @@ class UniversalAdversarialPerturbation(torch.nn.Module):
 
 class RIR(torch.nn.Module):
     seed = 9983137
-    def __init__(self, sev, rir_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/RIRS_NOISES/simulated_rirs', rir_snr_file='rir_snr.csv') -> None:
+    def __init__(self, sev, rir_dir=f'{os.environs["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs', rir_snr_file='rir_snr.csv') -> None:
         super().__init__()
         assert sev <= 4
         self.rir_dir = rir_dir
@@ -159,7 +159,7 @@ class RIR(torch.nn.Module):
         return x_
 
 class RIR_RoomSize(torch.nn.Module):
-    def __init__(self, room_type, rir_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/RIRS_NOISES/simulated_rirs') -> None:
+    def __init__(self, room_type, rir_dir=f'{os.environs["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs') -> None:
         super().__init__()
         self.rir_dir = rir_dir
         rir_files = []
@@ -268,7 +268,7 @@ class VoiceConversion(AbsVoiceConversion):
         return speech
 
 class VoiceConversionVCTK(AbsVoiceConversion):
-    def __init__(self, accents, lang='en', vctk_dir='/ocean/projects/cis220031p/mshah1/audio_robustness_benchmark/VCTK') -> None:
+    def __init__(self, accents, lang='en', vctk_dir=f'{os.environs["SRB_ROOT"]}/VCTK') -> None:
         super().__init__()
         self.accents = accents
         self.vctk_dir = vctk_dir
