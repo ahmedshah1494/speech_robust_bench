@@ -7,6 +7,8 @@ results_dir = 'outputs_precomputed_data'
 result_files = []
 pert_eval_result_files = []
 for root, dirs, files in os.walk(results_dir):
+    if os.path.basename(root).startswith('.'):
+        continue
     for name in files:
         if name.endswith('tsv'):
             if 'pertEval' in name:
@@ -60,10 +62,12 @@ adv_result_dfs = []
 snr_to_sev = [50, 40, 30, 20, 10]
 
 for root, dirs, files in os.walk(adv_results_dir):
+    if os.path.basename(root).startswith('.'):
+        continue
     if 'log.txt' in files:        
         model = root.split('/')[-2]
         print(root)
-        augmentation = root.split('/')[-3]
+        augmentation = root.split('/')[-4]
         if augmentation == 'universal':
             continue
         snr = int(model.split('-')[-1])
@@ -71,44 +75,54 @@ for root, dirs, files in os.walk(adv_results_dir):
             continue
         sev = snr_to_sev.index(snr)
         model = '-'.join(model.split('-')[:-1])
-        dataset = 'librispeech_asr'
+        dataset = root.split('/')[-3]
         
-        if os.path.exists(os.path.join(root, 'cer_test-clean.txt')):
-            clean_word_df = load_full_result_from_adv_file(os.path.join(root, 'wer_test-clean.txt'))
-            clean_char_df = load_full_result_from_adv_file(os.path.join(root, 'cer_test-clean.txt'))[['id', 'wer']]
-            clean_char_df.rename(columns={'wer': 'cer'}, inplace=True)
-            clean_df = pd.merge(clean_word_df, clean_char_df, on='id')
-            clean_df['augmentation'] = None
-            clean_df['severity'] = 0
+        subsets = [fn.split('.')[0].replace('wer_adv_test-clean','').replace('cer_adv_test-clean', '') for fn in files if (fn.startswith('wer_adv_test-clean') or fn.startswith('cer_adv_test-clean'))]
+        subsets = set(subsets)
+        print(root, subsets)
+        for subset in subsets:
+            wer_file = os.path.join(root, f'wer_test-clean{subset}.txt')
+            cer_file = os.path.join(root, f'cer_test-clean{subset}.txt')
+            wer_adv_file = os.path.join(root, f'wer_adv_test-clean{subset}.txt')
+            cer_adv_file = os.path.join(root, f'cer_adv_test-clean{subset}.txt')
 
-            # adv_df = load_full_result_from_adv_file(os.path.join(root, 'wer_adv_test-clean.txt'))
-            adv_word_df = load_full_result_from_adv_file(os.path.join(root, 'wer_adv_test-clean.txt'))
-            adv_char_df = load_full_result_from_adv_file(os.path.join(root, 'cer_adv_test-clean.txt'))[['id', 'wer']]
-            adv_char_df.rename(columns={'wer': 'cer'}, inplace=True)
-            adv_df = pd.merge(adv_word_df, adv_char_df, on='id')
-            adv_df['augmentation'] = augmentation
-            adv_df['severity'] = sev
+            if os.path.exists(wer_file) and os.path.exists(cer_file) and os.path.exists(wer_adv_file) and os.path.exists(cer_adv_file):
+                clean_word_df = load_full_result_from_adv_file(wer_file)
+                clean_char_df = load_full_result_from_adv_file(cer_file)[['id', 'wer']]
+                clean_char_df.rename(columns={'wer': 'cer'}, inplace=True)
+                clean_df = pd.merge(clean_word_df, clean_char_df, on='id')
+                clean_df['augmentation'] = None
+                clean_df['severity'] = 0
 
-            df = pd.concat([clean_df, adv_df])
-            df['model'] = model
-            df['dataset'] = dataset
-            adv_result_dfs.append(df)
+                # adv_df = load_full_result_from_adv_file(os.path.join(root, 'wer_adv_test-clean.txt'))
+                adv_word_df = load_full_result_from_adv_file(wer_adv_file)
+                adv_char_df = load_full_result_from_adv_file(cer_adv_file)[['id', 'wer']]
+                adv_char_df.rename(columns={'wer': 'cer'}, inplace=True)
+                adv_df = pd.merge(adv_word_df, adv_char_df, on='id')
+                adv_df['augmentation'] = augmentation
+                adv_df['severity'] = sev
 
-            wer, nwords, nwerrs = get_metric_from_adv_file(os.path.join(root, 'wer_adv_test-clean.txt'))
-            cer, nchars, ncerrs = get_metric_from_adv_file(os.path.join(root, 'cer_adv_test-clean.txt'))
-            r = {
-                'model': model,
-                'dataset': dataset,
-                'augmentation': augmentation,
-                'severity': sev,
-                'WER': wer,
-                'CER': cer,
-                'WED': nwerrs,
-                'CED': ncerrs,
-                'nwords': nwords,
-                'nchars': nchars
-            }
-            adv_results.append(r)
+                df = pd.concat([clean_df, adv_df])
+                df['model'] = model
+                df['dataset'] = dataset
+                adv_result_dfs.append(df)
+
+                wer, nwords, nwerrs = get_metric_from_adv_file(wer_adv_file)
+                cer, nchars, ncerrs = get_metric_from_adv_file(cer_adv_file)
+                r = {
+                    'model': model,
+                    'dataset': dataset,
+                    'augmentation': augmentation,
+                    'severity': sev,
+                    'WER': wer,
+                    'CER': cer,
+                    'WED': nwerrs,
+                    'CED': ncerrs,
+                    'nwords': nwords,
+                    'nchars': nchars,
+                    'subset': subset.replace('-',''),
+                }
+                adv_results.append(r)
         # r = {
         #     'model': model,
         #     'dataset': dataset,
@@ -133,7 +147,8 @@ for rfp in pert_eval_result_files:
         sev = int(sev)
     except:
         sev = 1
-    _, num_samples, num_perturbs = pe_params.split('_')
+    _, num_samples, num_perturbs = pe_params.split('_')[:3]
+
     
     df = pd.read_csv(rfp, sep='\t')
     df['model'] = model
