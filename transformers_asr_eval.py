@@ -11,6 +11,11 @@ import os
 from copy import deepcopy
 import string
 from corruptions import *
+from create_transformed_datasets import load_augmentation, transform_dataset
+from multiprocessing import cpu_count
+
+N_CPUS = cpu_count()
+N_GPUS = torch.cuda.device_count()
 
 def normalize_transcript(txt):
     txt = txt.lower()
@@ -18,115 +23,6 @@ def normalize_transcript(txt):
     for pnc in puncs:
         txt = txt.replace(pnc, '')
     return txt
-
-def load_augmentation(args):
-    if args.augmentation:
-        if ':' in args.augmentation:
-            aug, sev = args.augmentation.split(':', 1)
-            sev = int(sev)
-            assert sev <= 4
-        else:
-            aug = args.augmentation
-            sev = None
-    else:
-        aug = None
-        sev = 0
-    
-    if aug is None:
-        transform = None
-    elif "+" in aug:
-        augs = aug.split('+')
-        augfns = []
-        for a in augs:
-            fn, sev_args = AUGMENTATIONS[a]
-            augfns.append(fn(sev_args[min(sev, len(sev_args)-1)]))
-        transform = Compose(augfns)
-    elif aug in AUGMENTATIONS:
-        fn, sev_args = AUGMENTATIONS[aug]
-        if sev is None:
-            transform = fn(args.severity)
-            sev = args.severity
-        else:
-            if issubclass(fn, UniversalAdversarialPerturbation):
-                transform = fn(sev_args[sev], args.universal_delta_path)
-            else:    
-                transform = fn(sev_args[sev])
-    return transform, aug, sev
-
-def transform_dataset(dataset, transform):
-    def transform_(batch):
-        if isinstance(transform, (VoiceConversion, Compose)):
-            T = deepcopy(transform).cuda()
-        else:
-            T = transform
-        for audio, text in zip(batch['audio'], batch['text']):
-            if isinstance(transform, (VoiceConversion, Compose)):
-                audio['array'] = T(audio['array'], text)
-            else:
-                audio['array'] = T(audio['array'])
-        if isinstance(transform, VoiceConversion):
-            del T
-        return batch
-
-    nproc = 8 if isinstance(transform, VoiceConversion) else 4
-    print(dataset[0])
-    if transform is not None:
-        dataset = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=isinstance(transform, VoiceConversion))
-    dataset = dataset.with_format('np')
-    return dataset
-
-def transform_dataset_for_ptest(dataset, transform, num_samples, num_perturb_per_sample, subset_seed=9999):
-    def update_pert_idx(batch):
-        batch['pert_idx'] = [pert_idx] * len(batch['audio'])
-        return batch
-    
-    def transform_(batch):
-        T = transform
-        for audio in batch['audio']:
-            audio['array'] = T(audio['array'])
-        return batch
-
-    nproc =  4
-    rng = np.random.default_rng(subset_seed)
-    subset = rng.choice(len(dataset), num_samples, replace=False)
-    dataset = dataset.select(subset)
-    print(dataset[0])
-    datasets = []
-    for pert_idx in range(num_perturb_per_sample):
-        dataset = dataset.map(update_pert_idx, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=False)
-        if pert_idx == 0:            
-            datasets.append(dataset)
-        else:
-            dataset_ = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=False,)
-            if not isinstance(transform, (GaussianNoise, UniformNoise, EnvNoise)):
-                dataset = dataset_
-            datasets.append(dataset_)
-        # print(datasets[0][0]['audio']['array'], datasets[-1][0]['audio']['array'])
-        # print(pert_idx, datasets[0][0]['audio']['array'] - datasets[-1][0]['audio']['array'])
-    dataset = concatenate_datasets(datasets)
-    dataset = dataset.with_format('np')
-    print(dataset[0])
-    return dataset
-
-NOISE_SNRS = [30, 10, 5, 1, -10]
-ADV_SNRS = [50, 40, 30, 20, 10]
-SPEEDUP_FACTORS = [1, 1.25, 1.5, 1.75, 2]
-SLOWDOWN_FACTORS = [1, 0.875, 0.75, 0.625, 0.5]
-PITCH_UP_STEPS = [0, 3, 6, 9, 12]
-PITCH_DOWN_STEPS = [0, -3, -6, -9, -12]
-VC_ACCENTS = [[], ['bdl', 'slt', 'rms', 'clb'], ['jmk'], ['ksp'], ['awb']]
-AUGMENTATIONS = {
-    'unoise': (UniformNoise, NOISE_SNRS),
-    'gnoise': (GaussianNoise, NOISE_SNRS),
-    'env_noise': (EnvNoise, NOISE_SNRS),
-    'speedup': (Speed, SPEEDUP_FACTORS),
-    'slowdown': (Speed, SLOWDOWN_FACTORS),
-    'pitch_up': (Pitch, PITCH_UP_STEPS),
-    'pitch_down': (Pitch, PITCH_DOWN_STEPS),
-    'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
-    'rir': (RIR, [0,1,2,3,4]),
-    'voice_conversion': (VoiceConversion, VC_ACCENTS)
-}
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -139,21 +35,58 @@ if __name__ == '__main__':
     parser.add_argument('--severity', type=float)
     parser.add_argument('--universal_delta_path', type=str)
     parser.add_argument('--language', default='english')
-    parser.add_argument('--output_dir', default='outputs')
+    parser.add_argument('--output_dir', default='outputs_precomputed_data')
     parser.add_argument('--model_parallelism', action='store_true')
     parser.add_argument('--run_perturb_robustness_eval', action='store_true')
     parser.add_argument('--n_perturb_per_sample', type=int, default=30)
     parser.add_argument('--n_samples', type=int, default=500)
     parser.add_argument('--overwrite_result_file', action='store_true')
+    parser.add_argument('--skip_if_result_exists', action='store_true')
     args = parser.parse_args()
 
     transform, aug, sev = load_augmentation(args)
-    dataset = load_dataset(args.dataset, args.subset, split=args.split)
-    dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
+
+    odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset.split("/")[-1]}'
+    os.makedirs(odir, exist_ok=True)
+
+    if args.augmentation == 'universal_adv':
+        aug = f'{aug}_{args.universal_delta_path.split("/")[-3]}'
+    ofn = f'{aug}-{sev}'
     if args.run_perturb_robustness_eval:
-        dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
+        assert transform is not None
+        ofn = f'{ofn}-pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
+    ofp = f'{odir}/{ofn}.tsv'
+    if not args.overwrite_result_file:
+        i = 1
+        ofp = f'{odir}/{ofn}_{i}.tsv'
+        # print(ofp, os.path.exists(ofp))
+        if args.skip_if_result_exists and (os.path.exists(ofp) or ((i == 1) and os.path.exists(f'{odir}/{ofn}.tsv'))):
+            print(f'Skipping {ofp}')
+            exit()
+        while os.path.exists(ofp):
+            i += 1
+            ofp = f'{odir}/{ofn}_{i}.tsv'
+
+    if (transform is None) or (aug == 'universal_adv'):
+        dataset = load_dataset(args.dataset, args.subset, split=args.split)
+        dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
+        if aug == 'universal_adv':
+            dataset = transform_dataset(dataset, transform)
+
+        print(dataset)
     else:
-        dataset = transform_dataset(dataset, transform)
+        subset = f'{args.subset}_{args.split}' if args.subset else args.split
+        if args.run_perturb_robustness_eval:
+            subset = f'{subset}_pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
+        dataset = load_dataset('mshah1/speech_robust_bench', f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
+        # dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
+
+    # dataset = load_dataset(args.dataset, args.subset, split=args.split)
+    # dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
+    # if args.run_perturb_robustness_eval:
+    #     dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
+    # else:
+    #     dataset = transform_dataset(dataset, transform)
 
     wer_metric = evaluate.load("wer")
     cer_metric = evaluate.load("cer")
@@ -171,7 +104,7 @@ if __name__ == '__main__':
             x['spec'] = spec
             x['lengths'] = spec.shape[1]
             return x
-        dataset = dataset.map(extract_features, batched=False, num_proc=4)
+        dataset = dataset.map(extract_features, batched=False, num_proc=N_CPUS//4)
         
         def collate_fn(batch):
             specs = [torch.FloatTensor(batch[i]['spec']).transpose(0,1) for i in range(len(batch))]
@@ -179,7 +112,7 @@ if __name__ == '__main__':
             specs = torch.nn.utils.rnn.pad_sequence(specs, batch_first=True).unsqueeze(1).transpose(2,3)
             return {'spec': specs, 'lengths': lengths}
         
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=4, shuffle=False)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=N_CPUS//4, shuffle=False)
         decoder = GreedyDecoder(model.labels)
         def transcribe(dataloader):
             for batch in dataloader:
@@ -269,23 +202,7 @@ if __name__ == '__main__':
         if 'pert_idx' in inp:
             r['pert_idx'] = inp['pert_idx']
         output_rows.append(r)
+        t.set_description(f'{args.model_name.split("/")[-1]}\t{aug}:{sev}')
         t.set_postfix(wer=wer, cer=cer)
-
-    odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset.split("/")[-1]}'
-    if not os.path.exists(odir):
-        os.makedirs(odir)
-
     df = pd.DataFrame(output_rows)
-    if args.augmentation == 'universal_adv':
-        aug = f'{aug}_{args.universal_delta_path.split("/")[-3]}'
-    ofn = f'{aug}-{sev}'
-    if args.run_perturb_robustness_eval:
-        ofn = f'{ofn}-pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
-    ofp = f'{odir}/{ofn}.tsv'
-    if not args.overwrite_result_file:
-        i = 1
-        ofp = f'{odir}/{ofn}_{i}.tsv'
-        while os.path.exists(ofp):
-            i += 1
-            ofp = f'{odir}/{ofn}_{i}.tsv'
     df.to_csv(ofp, sep='\t')
