@@ -5,7 +5,8 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--results_dir', default='outputs_precomputed_data')
+parser.add_argument('--results_dir', default='outputs', help='Directory containing the results of the perturbation robustness evaluation. default: ./outputs')
+parser.add_argument('--robust_speech_data_root', default=f'{os.environ['SRB_ROOT']}/robust_speech_data_root', help='Directory containing the results of the perturbation robustness evaluation. default: ./outputs')
 args = parser.parse_args()
 
 results_dir = args.results_dir
@@ -61,7 +62,7 @@ def load_full_result_from_adv_file(fname):
     df = pd.DataFrame(rows)
     return df
 
-adv_results_dir = 'robust_speech/advattack_data_and_results/attacks'
+adv_results_dir = f'{args.robust_speech_data_root}/attacks'
 adv_results = []
 adv_result_dfs = []
 snr_to_sev = [50, 40, 30, 20, 10]
@@ -228,9 +229,9 @@ for rfp in result_files:
 
 results_df = pd.DataFrame(results)
 results_df = pd.concat([results_df, adv_results_df])
-results_df.to_csv('results/collated_results_all_models-precomputed_data.csv')
+results_df.to_csv('results/collated_results_all_models.csv')
 # results_df.to_latex('results/collated_results_all_models-normedtrans.tex')
 
 full_result_df = pd.concat(result_dfs+adv_result_dfs)
-full_result_df.to_csv('results/full_result_df-precomputed_data.csv')
+full_result_df.to_csv('results/full_result_df.csv')
 # full_result_df.to_hdf('results/full_result_df-normedtrans.hd5', 'df', mode='w', complevel=9, complib='bzip2')
