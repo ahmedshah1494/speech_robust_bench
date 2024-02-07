@@ -2,6 +2,7 @@ transformers==4.34.0
 tokenizers
 datasets
 evaluate==0.4.1
+jiwer==3.0.3
 
 # absl-py==2.1.0
 # aiohttp==3.9.1
