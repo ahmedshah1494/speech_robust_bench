@@ -36,7 +36,7 @@ def compute_snr(clean, noisy):
     snrs = np.array(snrs)
     return snrs
 
-rir_dir=f'{os.environs["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs'
+rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs'
 rir_files = []
 print('listing rir files')
 for root, dirs, files in tqdm(os.walk(rir_dir)):

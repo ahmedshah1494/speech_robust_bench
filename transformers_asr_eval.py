@@ -96,7 +96,7 @@ if __name__ == '__main__':
         from deepspeech_pytorch.loader.data_loader import ChunkSpectrogramParser
         from deepspeech_pytorch.decoder import GreedyDecoder
 
-        model = DeepSpeech.load_from_checkpoint(f'{os.environs["SRB_ROOT"]}/deepspeech_ckps/librispeech_pretrained_v3.ckpt')
+        model = DeepSpeech.load_from_checkpoint(f'{os.environ["SRB_ROOT"]}/deepspeech_ckps/librispeech_pretrained_v3.ckpt')
         parser = ChunkSpectrogramParser(audio_conf=model.spect_cfg)
         def extract_features(x):
             waveform = x['audio']['array']
