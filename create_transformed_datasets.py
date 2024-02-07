@@ -135,12 +135,10 @@ UNIV_ADV_DELTAS = [
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--model_name', required=True, help='Model name or path compatible with HuggingFace Transformers library.')
     parser.add_argument('--dataset', default="librispeech_asr", help='Name for dataset to load from huggingface hub. default: librispeech_asr.')
     parser.add_argument('--hf_repo', required=True, help='HuggingFace repo to push the transformed dataset to.')
     parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
     parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
-    parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruptions.AUGMENTATIONS, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
     parser.add_argument('--universal_delta_path', type=str, help='Path to the universal adversarial perturbation. default: None')
     parser.add_argument('--run_perturb_robustness_eval', action='store_true', help='Run prediction stability analysis. default: False')
