@@ -185,6 +185,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--model_name', default="openai/whisper-small")
     parser.add_argument('--dataset', default="librispeech_asr")
+    parser.add_argument('--hf_repo', required=True)
     parser.add_argument('--subset', default=None)
     parser.add_argument('--split', default='test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
@@ -215,4 +216,4 @@ if __name__ == '__main__':
         aug = f'universal_adv_{tgt_model}'
     if args.perturb_robustness_eval:
         subset = f'{subset}_pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
-    dataset.push_to_hub(f"mshah1/speech_robust_bench", f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
+    dataset.push_to_hub(args.hf_repo, f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
