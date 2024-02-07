@@ -44,20 +44,21 @@ es_models = [
 ]
 
 parser = ArgumentParser()
-parser.print_help('Utility script to run speech robustness benchmark for multiple models and all perturbations. The args are same as transformers_asr_eval.py.')
+parser.print_help('Utility script to run speech robustness benchmark for multiple models and all perturbations. The args are same as evaluate_single.py.')
 parser.add_argument('--models', nargs='+', default=None, help='List of models to run. Models must be present in en_models or es_models in run_speech_robust_bench.py')
 parser.add_argument('--dataset', default="librispeech_asr")
 parser.add_argument('--subset', default=None)
 parser.add_argument('--split', default='test.clean')
 parser.add_argument('--batch_size', default=16)
 parser.add_argument('--run_perturb_robustness_eval', action='store_true')
+parser.add_argument('--output_dir', default='outputs', help='Output directory for the results. default: outputs')
 parser.add_argument('--skip_if_result_exists', action='store_true')
 parser.add_argument('--overwrite_result_file', action='store_true')
 args = parser.parse_args()
 
 def create_cmd(model, delta_path, aug, sev):
-    language = 'english' if args.dataset == 'librispeech_asr' else ('spa' if 'mms' in model else 'spanish')
-    cmd = f'python transformers_asr_eval.py --model_name {model} --batch_size {args.batch_size} --skip_if_result_exists  --dataset {args.dataset} --split {args.split} --language {language}'
+    language = 'English' if args.dataset == 'librispeech_asr' else 'Spanish'
+    cmd = f'python evaluate_single.py --model_name {model} --batch_size {args.batch_size} --skip_if_result_exists  --dataset {args.dataset} --split {args.split} --language {language} --output_dir {args.output_dir}'
     if (delta_path != '') and (aug == 'universal_adv'):
         cmd += f' --universal_delta_path {delta_path}'
     if aug is not None:
