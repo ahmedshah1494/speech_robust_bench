@@ -2,8 +2,13 @@ import pandas as pd
 import numpy as np
 from scipy.stats import iqr
 import os
+import argparse
 
-results_dir = 'outputs_precomputed_data'
+parser = argparse.ArgumentParser()
+parser.add_argument('--results_dir', default='outputs_precomputed_data')
+args = parser.parse_args()
+
+results_dir = args.results_dir
 result_files = []
 pert_eval_result_files = []
 for root, dirs, files in os.walk(results_dir):

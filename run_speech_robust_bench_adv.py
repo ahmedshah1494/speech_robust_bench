@@ -45,10 +45,11 @@ es_models = [
 PGD_SNRS = [40, 30, 20, 10]
 UNIVERSAL_SNRS = [10]
 parser = ArgumentParser()
-parser.add_argument('--dataset', default="LibriSpeech")
-parser.add_argument('--data_root', default="/jet/home/mshah1/projects/audio_robustness_benchmark/robust_speech/advattack_data_and_results")
-parser.add_argument('--data_csv_name', default="test-clean")
-parser.add_argument('--attack_type', default="pgd")
+parser.add_argument('--models', nargs='+', default=None, help='List of models to run. Models must be present in en_models or es_models in run_speech_robust_bench_adv.py')
+parser.add_argument('--dataset', default="LibriSpeech", help='Dataset to run the attack on. This should be the name of a directory in the <data_root>/data.')
+parser.add_argument('--data_root', default="robust_speech/advattack_data_and_results")
+parser.add_argument('--data_csv_name', default="test-clean", help='Name of the csv file in the <data_root>/data/<dataset>/csv directory. DO NOT INCLUDE THE FILE EXTENSION.')
+parser.add_argument('--attack_type', default="pgd", help='Type of attack to run. Options: pgd, universal', choices=['pgd', 'universal'])
 args = parser.parse_args()
 
 def create_pgd_cmd(model, snr):
@@ -80,6 +81,10 @@ def create_attack_cmd(model, snr):
         raise ValueError(f'Invalid attack type {args.attack_type}')
 
 Q = Queue()
+if args.models is not None:
+    en_models = [m for m in en_models if m[0] in args.models]
+    es_models = [m for m in es_models if m[0] in args.models]
+
 if args.dataset == 'LibriSpeech':
     models = en_models
 else:

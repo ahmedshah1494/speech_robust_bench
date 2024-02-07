@@ -44,7 +44,8 @@ es_models = [
 ]
 
 parser = ArgumentParser()
-parser.add_argument('--models', nargs='+', default=None)
+parser.print_help('Utility script to run speech robustness benchmark for multiple models and all perturbations. The args are same as transformers_asr_eval.py.')
+parser.add_argument('--models', nargs='+', default=None, help='List of models to run. Models must be present in en_models or es_models in run_speech_robust_bench.py')
 parser.add_argument('--dataset', default="librispeech_asr")
 parser.add_argument('--subset', default=None)
 parser.add_argument('--split', default='test.clean')
