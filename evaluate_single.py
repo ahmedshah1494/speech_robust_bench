@@ -155,16 +155,17 @@ if __name__ == '__main__':
             kwargs = {'device': 'cuda:0'}
         model = args.model_name
         gen_kwargs = {}
-        if ('whisper' in args.model_name) and (args.language != 'english'):
+        if ('whisper' in args.model_name) and (args.language != 'English'):
             from transformers import WhisperProcessor
             processor = WhisperProcessor.from_pretrained(args.model_name)
-            gen_kwargs = {'forced_decoder_ids': processor.get_decoder_prompt_ids(language=args.language, task="transcribe")}
+            gen_kwargs = {'forced_decoder_ids': processor.get_decoder_prompt_ids(language=args.language.lower(), task="transcribe")}
             print(gen_kwargs)
-        if ('mms' in args.model_name) and (args.language != 'english'):
+        if ('mms' in args.model_name) and (args.language != 'English'):
             from transformers import Wav2Vec2ForCTC, AutoProcessor
             processor = AutoProcessor.from_pretrained(args.model_name, torch_dtype=torch.float16)
             model = Wav2Vec2ForCTC.from_pretrained(args.model_name, torch_dtype=torch.float16)
-            processor.tokenizer.set_target_lang(args.language)
+            from iso639 import Lang
+            processor.tokenizer.set_target_lang(Lang(args.language).pt2t)
             kwargs['tokenizer'] = processor.tokenizer
             kwargs['feature_extractor'] = args.model_name
             model.load_adapter(args.language)
