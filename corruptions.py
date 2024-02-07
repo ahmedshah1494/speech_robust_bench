@@ -401,3 +401,51 @@ class Compose(torch.nn.Module):
             else:
                 x = t(speech)
         return x
+    
+NOISE_SNRS = [30, 10, 5, 1, -10]
+ADV_SNRS = [50, 40, 30, 20, 10]
+SPEEDUP_FACTORS = [1, 1.25, 1.5, 1.75, 2]
+SLOWDOWN_FACTORS = [1, 0.875, 0.75, 0.625, 0.5]
+PITCH_UP_STEPS = [0, 3, 6, 9, 12]
+PITCH_DOWN_STEPS = [0, -3, -6, -9, -12]
+RESAMPLING_FACTORS = [1, 0.75, 0.5, 0.25, 0.125]
+GAIN_FACTORS = [0, 10, 20, 30, 40]
+ECHO_DELAYS = [0, 125, 250, 500, 1000]
+PHASER_DECAYS = [0.1, 0.3, 0.5, 0.7, 0.9]
+LOWPASS_FREQS = [8000] + np.linspace(4000, 500, 4).astype(int).tolist()
+HIGHPASS_FREQS = [0] + np.linspace(500, 3000, 4).astype(int).tolist()
+VC_ACCENTS = [[], ['bdl', 'slt', 'rms', 'clb'], ['jmk'], ['ksp'], ['awb']]
+# VC_VCTK_ACCENTS = [['English'], ['Scottish'], ['NorthernIrish'], ['Irish'], ['Indian'], ['Welsh'],
+#        ['American'], ['Canadian'], ['SouthAfrican'], ['Australian'],
+#        ['NewZealand'], ['British']]
+VC_VCTK_ACCENTS = [[], ['English', 'Scottish', 'NorthernIrish', 'Irish', 'Indian', 'Welsh',
+                        'American', 'Canadian', 'SouthAfrican', 'Australian',
+                        'NewZealand', 'British']]
+
+AUGMENTATIONS = {
+    # 'unoise': (UniformNoise, NOISE_SNRS),
+    'gnoise': (GaussianNoise, NOISE_SNRS),
+    # 'env_noise': (EnvNoise, NOISE_SNRS),
+    'env_noise_esc50': (EnvNoiseESC50, NOISE_SNRS),
+    'speedup': (Speed, SPEEDUP_FACTORS),
+    'slowdown': (Speed, SLOWDOWN_FACTORS),
+    'pitch_up': (Pitch, PITCH_UP_STEPS),
+    'pitch_down': (Pitch, PITCH_DOWN_STEPS),
+    'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
+    'rir': (RIR, [0,1,2,3,4]),
+    # 'voice_conversion': (VoiceConversion, VC_ACCENTS),
+    'voice_conversion_vctk': (VoiceConversionVCTK, VC_VCTK_ACCENTS),
+    'resample': (ResamplingNoise, RESAMPLING_FACTORS),
+    'gain': (Gain, GAIN_FACTORS),
+    'echo': (Echo, ECHO_DELAYS),
+    'phaser': (Phaser, PHASER_DECAYS),
+    'tempo_up': (Tempo, SPEEDUP_FACTORS),
+    'tempo_down': (Tempo, SLOWDOWN_FACTORS),
+    'lowpass': (LowPassFilter, LOWPASS_FREQS),
+    'highpass': (HighPassFilter, HIGHPASS_FREQS),
+}
+
+PERT_ROB_AUGMENTATIONS = {
+    'gnoise': (GaussianNoise, NOISE_SNRS[1:2]),
+    'env_noise_esc50': (EnvNoiseESC50, NOISE_SNRS[1:2]),
+}

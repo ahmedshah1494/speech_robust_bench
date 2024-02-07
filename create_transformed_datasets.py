@@ -133,72 +133,19 @@ UNIV_ADV_DELTAS = [
     'robust_speech/advattack_data_and_results/attacks/universal/whisper-large-v2-10/1002/CKPT+2023-11-27+18-55-29+00/delta.ckpt',
 ]
 
-NOISE_SNRS = [30, 10, 5, 1, -10]
-ADV_SNRS = [50, 40, 30, 20, 10]
-SPEEDUP_FACTORS = [1, 1.25, 1.5, 1.75, 2]
-SLOWDOWN_FACTORS = [1, 0.875, 0.75, 0.625, 0.5]
-PITCH_UP_STEPS = [0, 3, 6, 9, 12]
-PITCH_DOWN_STEPS = [0, -3, -6, -9, -12]
-RESAMPLING_FACTORS = [1, 0.75, 0.5, 0.25, 0.125]
-GAIN_FACTORS = [0, 10, 20, 30, 40]
-ECHO_DELAYS = [0, 125, 250, 500, 1000]
-PHASER_DECAYS = [0.1, 0.3, 0.5, 0.7, 0.9]
-LOWPASS_FREQS = [8000] + np.linspace(4000, 500, 4).astype(int).tolist()
-HIGHPASS_FREQS = [0] + np.linspace(500, 3000, 4).astype(int).tolist()
-VC_ACCENTS = [[], ['bdl', 'slt', 'rms', 'clb'], ['jmk'], ['ksp'], ['awb']]
-# VC_VCTK_ACCENTS = [['English'], ['Scottish'], ['NorthernIrish'], ['Irish'], ['Indian'], ['Welsh'],
-#        ['American'], ['Canadian'], ['SouthAfrican'], ['Australian'],
-#        ['NewZealand'], ['British']]
-VC_VCTK_ACCENTS = [[], ['English', 'Scottish', 'NorthernIrish', 'Irish', 'Indian', 'Welsh',
-                        'American', 'Canadian', 'SouthAfrican', 'Australian',
-                        'NewZealand', 'British']]
-
-AUGMENTATIONS = {
-    # 'unoise': (UniformNoise, NOISE_SNRS),
-    'gnoise': (GaussianNoise, NOISE_SNRS),
-    # 'env_noise': (EnvNoise, NOISE_SNRS),
-    'env_noise_esc50': (EnvNoiseESC50, NOISE_SNRS),
-    'speedup': (Speed, SPEEDUP_FACTORS),
-    'slowdown': (Speed, SLOWDOWN_FACTORS),
-    'pitch_up': (Pitch, PITCH_UP_STEPS),
-    'pitch_down': (Pitch, PITCH_DOWN_STEPS),
-    'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
-    'rir': (RIR, [0,1,2,3,4]),
-    # 'voice_conversion': (VoiceConversion, VC_ACCENTS),
-    'voice_conversion_vctk': (VoiceConversionVCTK, VC_VCTK_ACCENTS),
-    'resample': (ResamplingNoise, RESAMPLING_FACTORS),
-    'gain': (Gain, GAIN_FACTORS),
-    'echo': (Echo, ECHO_DELAYS),
-    'phaser': (Phaser, PHASER_DECAYS),
-    'tempo_up': (Tempo, SPEEDUP_FACTORS),
-    'tempo_down': (Tempo, SLOWDOWN_FACTORS),
-    'lowpass': (LowPassFilter, LOWPASS_FREQS),
-    'highpass': (HighPassFilter, HIGHPASS_FREQS),
-}
-
-PERT_ROB_AUGMENTATIONS = {
-    'gnoise': (GaussianNoise, NOISE_SNRS[1:2]),
-    'env_noise_esc50': (EnvNoiseESC50, NOISE_SNRS[1:2]),
-}
-
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--model_name', default="openai/whisper-small")
-    parser.add_argument('--dataset', default="librispeech_asr")
-    parser.add_argument('--hf_repo', required=True)
-    parser.add_argument('--subset', default=None)
-    parser.add_argument('--split', default='test.clean')
+    parser.add_argument('--model_name', required=True, help='Model name or path compatible with HuggingFace Transformers library.')
+    parser.add_argument('--dataset', default="librispeech_asr", help='Name for dataset to load from huggingface hub. default: librispeech_asr.')
+    parser.add_argument('--hf_repo', required=True, help='HuggingFace repo to push the transformed dataset to.')
+    parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
+    parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--augmentation', type=str)
-    parser.add_argument('--severity', type=float)
-    parser.add_argument('--universal_delta_path', type=str)
-    parser.add_argument('--language', default='english')
-    parser.add_argument('--output_dir', default='outputs')
-    parser.add_argument('--model_parallelism', action='store_true')
-    parser.add_argument('--perturb_robustness_eval', action='store_true')
-    parser.add_argument('--n_perturb_per_sample', type=int, default=30)
-    parser.add_argument('--n_samples', type=int, default=500)
-    parser.add_argument('--overwrite_result_file', action='store_true')
+    parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruptions.AUGMENTATIONS, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
+    parser.add_argument('--universal_delta_path', type=str, help='Path to the universal adversarial perturbation. default: None')
+    parser.add_argument('--run_perturb_robustness_eval', action='store_true', help='Run prediction stability analysis. default: False')
+    parser.add_argument('--n_perturb_per_sample', type=int, default=30, help='Number of perturbations to generate per sample for stability analysis. default: 30')
+    parser.add_argument('--n_samples', type=int, default=500, help='Number of samples to use for stability analysis. default: 500')
     args = parser.parse_args()
 
     transform, aug, sev = load_augmentation(args)
