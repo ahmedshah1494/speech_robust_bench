@@ -11,7 +11,7 @@ import os
 from copy import deepcopy
 import string
 from corruptions import *
-from create_transformed_datasets import load_augmentation, transform_dataset
+from create_transformed_datasets import load_augmentation, transform_dataset, parse_augmentation
 from multiprocessing import cpu_count
 
 N_CPUS = cpu_count()
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--skip_if_result_exists', action='store_true', help='Skip the evaluation if the result file exists. default: False')
     args = parser.parse_args()
 
-    transform, aug, sev = load_augmentation(args)
+    aug, sev = parse_augmentation(args)
 
     odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset.split("/")[-1]}'
     os.makedirs(odir, exist_ok=True)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         aug = f'{aug}_{args.universal_delta_path.split("/")[-3]}'
     ofn = f'{aug}-{sev}'
     if args.run_perturb_robustness_eval:
-        assert transform is not None
+        assert args.augmentation is not None
         ofn = f'{ofn}-pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
     ofp = f'{odir}/{ofn}.tsv'
     if not args.overwrite_result_file:
@@ -67,10 +67,11 @@ if __name__ == '__main__':
             i += 1
             ofp = f'{odir}/{ofn}_{i}.tsv'
 
-    if (transform is None) or (aug == 'universal_adv'):
+    if (args.augmentation is None) or (aug == 'universal_adv'):
         dataset = load_dataset(args.dataset, args.subset, split=args.split)
         dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
         if aug == 'universal_adv':
+            transform = load_augmentation(aug, sev)
             dataset = transform_dataset(dataset, transform)
 
         print(dataset)

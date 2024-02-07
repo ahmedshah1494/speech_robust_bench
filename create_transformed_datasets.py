@@ -22,7 +22,7 @@ def normalize_transcript(txt):
         txt = txt.replace(pnc, '')
     return txt
 
-def load_augmentation(args):
+def parse_augmentation(args):
     if args.augmentation:
         if ':' in args.augmentation:
             aug, sev = args.augmentation.split(':', 1)
@@ -34,7 +34,9 @@ def load_augmentation(args):
     else:
         aug = None
         sev = 0
-    
+    return aug, sev
+
+def load_augmentation(aug, sev):
     if aug is None:
         transform = None
     elif "+" in aug:
@@ -54,7 +56,7 @@ def load_augmentation(args):
                 transform = fn(sev_args[sev], args.universal_delta_path)
             else:    
                 transform = fn(sev_args[sev])
-    return transform, aug, sev
+    return transform
 
 def trim_text_to_charcount(text, charcount):
     if len(text) > charcount:
@@ -146,7 +148,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_samples', type=int, default=500, help='Number of samples to use for stability analysis. default: 500')
     args = parser.parse_args()
 
-    transform, aug, sev = load_augmentation(args)
+    aug, sev = parse_augmentation(args)
+    transform = load_augmentation(aug, sev)
     print(aug, sev)
     dataset = load_dataset(args.dataset, args.subset, split=args.split)
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
