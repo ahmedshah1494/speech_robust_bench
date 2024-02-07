@@ -26,22 +26,22 @@ def normalize_transcript(txt):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--model_name', default="openai/whisper-small")
-    parser.add_argument('--dataset', default="librispeech_asr")
-    parser.add_argument('--subset', default=None)
-    parser.add_argument('--split', default='test.clean')
+    parser.add_argument('--model_name', required=True, help='Model name or path compatible with HuggingFace Transformers library.')
+    parser.add_argument('--dataset', default="librispeech_asr", help='Name for dataset to load from huggingface hub. Used to run eval on clean data and utterance agnostic (universal) adversarial perturbations. default: librispeech_asr.')
+    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench')
+    parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
+    parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--augmentation', type=str)
-    parser.add_argument('--severity', type=float)
-    parser.add_argument('--universal_delta_path', type=str)
-    parser.add_argument('--language', default='english')
-    parser.add_argument('--output_dir', default='outputs_precomputed_data')
-    parser.add_argument('--model_parallelism', action='store_true')
-    parser.add_argument('--run_perturb_robustness_eval', action='store_true')
-    parser.add_argument('--n_perturb_per_sample', type=int, default=30)
-    parser.add_argument('--n_samples', type=int, default=500)
-    parser.add_argument('--overwrite_result_file', action='store_true')
-    parser.add_argument('--skip_if_result_exists', action='store_true')
+    parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruptions.AUGMENTATIONS, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
+    parser.add_argument('--universal_delta_path', type=str, help='Path to the universal adversarial perturbation. default: None')
+    parser.add_argument('--language', default='english', help='Language of the dataset. This is needs to be correctly specified for multi-lingual models. default: english')
+    parser.add_argument('--output_dir', default='outputs', help='Output directory for the results. default: outputs')
+    parser.add_argument('--model_parallelism', action='store_true', help='Use model parallelism for the model. default: False')
+    parser.add_argument('--run_perturb_robustness_eval', action='store_true', help='Run prediction stability analysis. default: False')
+    parser.add_argument('--n_perturb_per_sample', type=int, default=30, help='Number of perturbations to generate per sample for stability analysis. default: 30')
+    parser.add_argument('--n_samples', type=int, default=500, help='Number of samples to use for stability analysis. default: 500')
+    parser.add_argument('--overwrite_result_file', action='store_true', help='Overwrite the result file if it exists. default: False')
+    parser.add_argument('--skip_if_result_exists', action='store_true', help='Skip the evaluation if the result file exists. default: False')
     args = parser.parse_args()
 
     transform, aug, sev = load_augmentation(args)
@@ -78,15 +78,7 @@ if __name__ == '__main__':
         subset = f'{args.subset}_{args.split}' if args.subset else args.split
         if args.run_perturb_robustness_eval:
             subset = f'{subset}_pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
-        dataset = load_dataset('mshah1/speech_robust_bench', f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
-        # dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-
-    # dataset = load_dataset(args.dataset, args.subset, split=args.split)
-    # dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-    # if args.run_perturb_robustness_eval:
-    #     dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
-    # else:
-    #     dataset = transform_dataset(dataset, transform)
+        dataset = load_dataset(args.srb_hf_repo, f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
 
     wer_metric = evaluate.load("wer")
     cer_metric = evaluate.load("cer")
