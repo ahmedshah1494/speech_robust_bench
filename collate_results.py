@@ -6,7 +6,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_dir', default='outputs', help='Directory containing the results of the perturbation robustness evaluation. default: ./outputs')
-parser.add_argument('--robust_speech_data_root', default=f'{os.environ['SRB_ROOT']}/robust_speech_data_root', help='Directory containing the results of the perturbation robustness evaluation. default: ./outputs')
+parser.add_argument('--robust_speech_data_root', default=f'{os.environ["SRB_ROOT"]}/robust_speech_data_root', help='Directory containing the results of the perturbation robustness evaluation. default: .$SRB_ROOT/robust_speech_data_root')
 args = parser.parse_args()
 
 results_dir = args.results_dir
@@ -191,11 +191,11 @@ for rfp in result_files:
     df['runid'] = runid
     result_dfs.append(df)
 
-    if noise == 'universal_adv':
-        utt_ids = pd.read_csv('robust_speech/advattack_data_and_results/data/LibriSpeech/csv/test-clean-100.csv')['ID'].values
-        print(len(df))
-        df = df[df['id'].isin(utt_ids)]
-        print(len(df))
+    # if noise == 'universal_adv':
+    #     utt_ids = pd.read_csv('robust_speech/advattack_data_and_results/data/LibriSpeech/csv/test-clean-100.csv')['ID'].values
+    #     print(len(df))
+    #     df = df[df['id'].isin(utt_ids)]
+    #     print(len(df))
 
     nwords = np.array([len(ref.split()) for ref in df['reference']])
     nchars = np.array([len(ref) for ref in df['reference']])
