@@ -71,7 +71,7 @@ if __name__ == '__main__':
         dataset = load_dataset(args.dataset, args.subset, split=args.split)
         dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
         if aug == 'universal_adv':
-            transform = load_augmentation(aug, sev)
+            transform = load_augmentation(aug, sev, args.universal_delta_path)
             dataset = transform_dataset(dataset, transform)
 
         print(dataset)

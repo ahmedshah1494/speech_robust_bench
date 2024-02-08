@@ -36,7 +36,7 @@ def parse_augmentation(args):
         sev = 0
     return aug, sev
 
-def load_augmentation(aug, sev):
+def load_augmentation(aug, sev, universal_delta_path=None):
     if aug is None:
         transform = None
     elif "+" in aug:
@@ -48,14 +48,10 @@ def load_augmentation(aug, sev):
         transform = Compose(augfns)
     elif aug in AUGMENTATIONS:
         fn, sev_args = AUGMENTATIONS[aug]
-        if sev is None:
-            transform = fn(args.severity)
-            sev = args.severity
-        else:
-            if issubclass(fn, UniversalAdversarialPerturbation):
-                transform = fn(sev_args[sev], args.universal_delta_path)
-            else:    
-                transform = fn(sev_args[sev])
+        if issubclass(fn, UniversalAdversarialPerturbation):
+            transform = fn(sev_args[sev], universal_delta_path)
+        else:    
+            transform = fn(sev_args[sev])
     return transform
 
 def trim_text_to_charcount(text, charcount):
@@ -149,7 +145,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     aug, sev = parse_augmentation(args)
-    transform = load_augmentation(aug, sev)
+    transform = load_augmentation(aug, sev, args.universal_delta_path)
     print(aug, sev)
     dataset = load_dataset(args.dataset, args.subset, split=args.split)
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
