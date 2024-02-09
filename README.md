@@ -31,8 +31,8 @@ Set `<root>` to a location which can store somewhat large files.
 
 **Download Deepspeech Checkpoint**
 ```
-mkdir deepspeech_ckps
-cd deepspeech_ckps
+mkdir $SRB_ROOT/deepspeech_ckps
+cd $SRB_ROOT/deepspeech_ckps
 wget https://github.com/SeanNaren/deepspeech.pytorch/releases/download/V3.0/librispeech_pretrained_v3.ckpt
 ```
 
@@ -87,14 +87,17 @@ This script will collate the results from the non-adversarial and adversarial ev
 
 This script will generate 3 csv files in the `./results` directory: 
 - `collated_results_all_models.csv`: Containing the WER and CER for all the models evaluated on all the perturbations. Each row corresponds to the results for a single model and perturbation. The fields in the csv are:
-`,model,dataset,augmentation,severity,WER,CER,WED,CED,nwords,nchars,runid,subset`, where WER and CER are the word and character error rates, WED and CED are the word and character error differences, nwords and nchars are the number of words and characters in the dataset, and runid is the unique identifier for the run.
+`,model,dataset,augmentation,severity,WER,CER,WED,CED,nwords,nchars,runid,subset`, where WER and CER are the word and character error rates, WED and CED are the word and character errors, nwords and nchars are the number of words and characters in the dataset, and runid is the unique identifier for the run.
 - `collated_PertRob_results.csv`: Contains the results for the model stability evaluation. Each row corresponds to the transcription results for a single utterance for a given model, under single sampling of the perturbation. The fields in the csv are: 
 `,Unnamed: 0,id,reference,prediction,wer,cer,pert_idx,model,augmentation,severity,dataset`, where `id` is the unique identifier for the utterance, `reference` is the ground truth transcription, `prediction` is the model's transcription, `wer` and `cer` are the word and character error rates, `pert_idx` indicates different samplings of the same perturbation, and `model`, `augmentation`, `severity`, `dataset` are the model name, augmentation type, severity level and dataset name respectively.
 - `full_result_df.csv`: Contains the utterance-wise results for all models and perturbations. The fieds in this csv are:
 `id,reference,prediction,wer,cer,model,augmentation,severity,dataset,runid`.
 
 **Step 5: Computing Metrics**
-
+The following iPython notebooks can be used to replicate the results of the paper:
+- `result_analysis_utility.py`: Code for computing NWER and plotting the results of utility-based (WER and NWER) based analyses from the paper.
+- `result_analysis_stability.py`: Code for computing WERV and plotting the results of the stability-based analyses from the paper.
+- `gender_analysis.ipynb`: Code for analyzing the disparity in robustness across genders.
 
 <!-- ## Data
 The evaluation code (introduced below) expects the datasets perturbed by _non-adversarial_ perturbations to be precomputed and uploaded to Huggingface hub. 
