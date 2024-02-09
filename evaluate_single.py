@@ -57,7 +57,7 @@ if __name__ == '__main__':
         ofn = f'{ofn}-pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
     ofp = f'{odir}/{ofn}.tsv'
     if not args.overwrite_result_file:
-        i = 1
+        i = 0
         ofp = f'{odir}/{ofn}_{i}.tsv'
         # print(ofp, os.path.exists(ofp))
         if args.skip_if_result_exists and (os.path.exists(ofp) or ((i == 1) and os.path.exists(f'{odir}/{ofn}.tsv'))):
