@@ -55,7 +55,7 @@ es_models = [
     ('facebook/wav2vec2-base-10k-voxpopuli-ft-es','/jet/home/mshah1/projects/audio_robustness_benchmark/robust_speech/advattack_data_and_results/attacks/universal/MLS-ES/wav2vec2-base-10k-voxpopuli-ft-es-10/1002/CKPT+2024-01-31+23-42-07+00/delta.ckpt'),
     ('openai/whisper-tiny', '/jet/home/mshah1/projects/audio_robustness_benchmark/robust_speech/advattack_data_and_results/attacks/universal/MLS-ES/whisper-tiny-10/1002/CKPT+2024-02-01+20-45-03+00/delta.ckpt'),
     ('facebook/mms-1b-fl102', '/jet/home/mshah1/projects/audio_robustness_benchmark/robust_speech/advattack_data_and_results/attacks/universal/MLS-ES/mms-1b-fl102-10/1002/CKPT+2024-02-01+23-21-00+00/delta.ckpt'),
-    ('openai/whisper-large-v2', ''),
+    ('openai/whisper-large-v2', 'robust_speech/advattack_data_and_results/attacks/universal/MLS-ES/whisper-large-v2-10/1002/CKPT+2024-02-02+09-19-36+00/delta.ckpt'),
 ]
 
 parser = ArgumentParser()
@@ -110,8 +110,9 @@ for model_data in models:
             cmd = create_cmd(model, delta_path, aug, 1)
             Q.put(cmd)
     elif args.run_universal_adv_eval_only:
-        cmd = create_cmd(model, delta_path, 'universal_adv', 1)
-        Q.put(cmd)
+        for i in range(2, 5):
+            cmd = create_cmd(model, delta_path, 'universal_adv', i)
+            Q.put(cmd)
     else:
         if not args.run_universal_adv_eval_only:
             cmd = create_cmd(model, delta_path, None, None)

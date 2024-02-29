@@ -36,11 +36,11 @@ en_models = [
 ]
 
 es_models = [
-    # ('facebook/wav2vec2-large-xlsr-53-spanish', ''),
-    # ('facebook/wav2vec2-base-10k-voxpopuli-ft-es',''),
-    # ('facebook/mms-1b-fl102', ''),
+    ('facebook/wav2vec2-large-xlsr-53-spanish', ''),
+    ('facebook/wav2vec2-base-10k-voxpopuli-ft-es',''),
+    ('facebook/mms-1b-fl102', ''),
     ('openai/whisper-large-v2', ''),
-    # ('openai/whisper-tiny', ''),
+    ('openai/whisper-tiny', ''),
 ]
 PGD_SNRS = [40, 30, 20, 10]
 UNIVERSAL_SNRS = [10]
@@ -55,7 +55,7 @@ args = parser.parse_args()
 def create_pgd_cmd(model, snr):
     repo, model = model.split('/')
     cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/hf.yaml --root={args.data_root} --model_repo={repo} --model_name={model} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
-    if args.dataset == 'MLS-ES':
+    if args.dataset == 'MLS-ES' and model in ['mms-1b-fl102', 'whisper-large-v2', 'whisper-tiny']:
         if model == 'mms-1b-fl102':
             cmd += ' --lang spa'
         else:
