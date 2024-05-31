@@ -81,10 +81,10 @@ def transform_dataset(dataset, transform):
         print('done', os.getpid())
         return batch
 
-    nproc = 4 if isinstance(transform, (AbsVoiceConversion)) else 8
+    nproc = 4 if isinstance(transform, (AbsVoiceConversion)) else 4
     print(dataset[0])
     if transform is not None:
-        dataset = dataset.map(transform_, batched=True, batch_size=128, num_proc=nproc, load_from_cache_file=isinstance(transform, AbsVoiceConversion))
+        dataset = dataset.map(transform_, batched=True, batch_size=64, num_proc=nproc, load_from_cache_file=isinstance(transform, AbsVoiceConversion))
     dataset = dataset.with_format('np')
     return dataset
 
@@ -148,8 +148,9 @@ if __name__ == '__main__':
     transform = load_augmentation(aug, sev, args.universal_delta_path)
     print(aug, sev)
     dataset = load_dataset(args.dataset, args.subset, split=args.split)
+    dataset = dataset.filter(lambda x: not x['id'].startswith('inter_segment_gap'))
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-    if args.perturb_robustness_eval:
+    if args.run_perturb_robustness_eval:
         dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
     else:
         dataset = transform_dataset(dataset, transform)
@@ -158,6 +159,6 @@ if __name__ == '__main__':
     if aug == 'universal_adv':
         tgt_model = args.universal_delta_path.split('/')[-4]
         aug = f'universal_adv_{tgt_model}'
-    if args.perturb_robustness_eval:
+    if args.run_perturb_robustness_eval:
         subset = f'{subset}_pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
     dataset.push_to_hub(args.hf_repo, f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
