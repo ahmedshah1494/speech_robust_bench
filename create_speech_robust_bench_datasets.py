@@ -1,11 +1,13 @@
 from argparse import ArgumentParser
 from create_transformed_datasets import AUGMENTATIONS, UNIV_ADV_DELTAS
 import os 
+from datasets import load_dataset
 
 parser = ArgumentParser()
 parser.add_argument('--dataset', default="librispeech_asr")
 parser.add_argument('--subset', default=None)
 parser.add_argument('--split', default='test.clean')
+parser.add_argument('--hf_repo', required=True, help='HuggingFace repo to push the transformed dataset to.')
 args = parser.parse_args()
 
 for aug in AUGMENTATIONS.keys():
