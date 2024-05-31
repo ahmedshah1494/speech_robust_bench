@@ -4,6 +4,7 @@ import torchaudio.transforms as audio_transforms
 from datasets import load_dataset
 import torchaudio
 from torchaudio import functional as F
+import soundfile as sf
 import numpy as np
 import pandas as pd
 import os
@@ -82,6 +83,42 @@ class EnvNoiseESC50(EnvNoise):
     
     def __repr__(self):
         return f"EnvNoiseESC50({self.snr} dB)"
+
+class MusicMUSAN(EnvNoise):
+     def __init__(self, snr) -> None:
+        super().__init__(snr, f'{os.environ["SRB_ROOT"]}/musan/music')
+        self.noise_files = []
+        for root, dirs, files in os.walk(self.noise_dir):
+            for name in files:
+                if name.endswith('wav'):
+                    self.noise_files.append(os.path.join(root, name))
+
+class SpeechMUSAN(EnvNoise):
+     def __init__(self, snr) -> None:
+        super().__init__(snr, f'{os.environ["SRB_ROOT"]}/musan/speech')
+        self.noise_files = []
+        for root, dirs, files in os.walk(self.noise_dir):
+            for name in files:
+                if name.endswith('wav'):
+                    self.noise_files.append(os.path.join(root, name))
+
+class EnvNoiseMUSAN(EnvNoise):
+     def __init__(self, snr) -> None:
+        super().__init__(snr, f'{os.environ["SRB_ROOT"]}/musan/noise')
+        self.noise_files = []
+        for root, dirs, files in os.walk(self.noise_dir):
+            for name in files:
+                if name.endswith('wav'):
+                    self.noise_files.append(os.path.join(root, name))
+
+class EnvNoiseWHAM(EnvNoise):
+    def __init__(self, snr) -> None:
+        super().__init__(snr, f'{os.environ["SRB_ROOT"]}/wham_noise/tt')
+        self.noise_files = []
+        for root, dirs, files in os.walk(self.noise_dir):
+            for name in files:
+                if name.endswith('wav'):
+                    self.noise_files.append(os.path.join(root, name))
     
 class EnvNoiseDeterministic(EnvNoise):
     def __init__(self, snr, noise_dir=f'{os.environ["SRB_ROOT"]}/MS-SNSD/noise_test') -> None:
@@ -115,7 +152,7 @@ class UniversalAdversarialPerturbation(torch.nn.Module):
 
 class RIR(torch.nn.Module):
     seed = 9983137
-    def __init__(self, sev, rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs', rir_snr_file='rir_snr.csv') -> None:
+    def __init__(self, sev, rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs', rir_t60_file='rir_t60.csv') -> None:
         super().__init__()
         assert sev <= 4
         self.rir_dir = rir_dir
@@ -125,19 +162,17 @@ class RIR(torch.nn.Module):
             for name in files:
                 if name.endswith('wav'):
                     rir_files.append(os.path.join(root, name))
-        rir_snr_df = pd.read_csv(rir_snr_file)
-        unique_snrs = rir_snr_df['snr'].unique()
-        snr_sevs = np.linspace(unique_snrs.max(), unique_snrs.min(), 5)
-        print(snr_sevs, snr_sevs[sev])
+        rir_t60_df = pd.read_csv(rir_t60_file)
+        unique_t60 = rir_t60_df['RT60'].unique()
+        t60_sevs = np.linspace(unique_t60.min(), unique_t60.max(), 5)
+        print(t60_sevs, t60_sevs[sev])
         if sev == 0:
-            filtered_rows = rir_snr_df[rir_snr_df['snr'] >= snr_sevs[sev]]
-        elif sev == 1:
-            filtered_rows = rir_snr_df[(snr_sevs[sev] <= rir_snr_df['snr']) & (rir_snr_df['snr'] <= snr_sevs[sev-1])]
+            filtered_rows = rir_t60_df[rir_t60_df['RT60'] <= t60_sevs[sev]]
         else:
-            filtered_rows = rir_snr_df[(snr_sevs[sev] <= rir_snr_df['snr']) & (rir_snr_df['snr'] < snr_sevs[sev-1])]
+            filtered_rows = rir_t60_df[(rir_t60_df['RT60'] <= t60_sevs[sev]) & (rir_t60_df['RT60'] > t60_sevs[sev-1])]
         self.rir_files = filtered_rows['filename'].values
-        print(filtered_rows["snr"].min(), filtered_rows["snr"].max())
-        print(f'using {len(self.rir_files)} rirs with average SNR={filtered_rows["snr"].mean()}')
+        print(filtered_rows["RT60"].min(), filtered_rows["RT60"].max())
+        print(f'using {len(self.rir_files)} rirs with average RT60={filtered_rows["RT60"].mean()}')
         # {x['filename']: x['snr'] for x in pd.read_csv(rir_snr_file).to_dict('records')}
         # self.rng = np.random.default_rng(self.seed)
 
@@ -150,6 +185,62 @@ class RIR(torch.nn.Module):
         def get_random_rir():
             rir_file = os.path.join(self.rir_dir, self.rir_files[rng.choice(len(self.rir_files))])
             rir_raw, sample_rate = torchaudio.load(rir_file)
+            rir = rir_raw[:, int(sample_rate * .01) : ]
+            return rir
+        rir = get_random_rir()
+        rir = rir / torch.norm(rir, p=2)
+        rir = rir[0].reshape(-1).to(x.device)
+        x_ = torchaudio.functional.fftconvolve(x, rir)
+        return x_
+
+class RealRIR(torch.nn.Module):
+    seed = 9983137
+    def __init__(self, sev, rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/real_rirs', rir_t60_file='rir_snr.csv') -> None:
+        super().__init__()
+        assert sev <= 4
+        self.rir_dir = rir_dir
+        # self.rir_files = [x for x in os.listdir(rir_dir) if x.endswith('.wav')]
+        rir_files = []
+        for root, dirs, files in os.walk(rir_dir):
+            for name in files:
+                if name.endswith('wav'):
+                    rir_files.append(os.path.join(root, name))
+        rir_metric_df = pd.read_csv(rir_t60_file)
+        unique_srmr = rir_metric_df['srmr'].unique()
+        srmr_sevs = np.linspace(unique_srmr.max(), unique_srmr.min(), 5)
+        print(srmr_sevs, srmr_sevs[sev])
+        if sev == 0:
+            filtered_rows = rir_metric_df[(srmr_sevs[sev] <= rir_metric_df['srmr']) & (rir_metric_df['srmr'] <= srmr_sevs[sev-1])]
+        else:
+            filtered_rows = rir_metric_df[(srmr_sevs[sev] <= rir_metric_df['srmr']) & (rir_metric_df['srmr'] < srmr_sevs[sev-1])]
+        self.rir_files = filtered_rows['filename'].values
+        print(filtered_rows["srmr"].min(), filtered_rows["srmr"].max())
+        print(f'using {len(self.rir_files)} rirs with average SRMR={filtered_rows["srmr"].mean()}')
+        # {x['filename']: x['snr'] for x in pd.read_csv(rir_snr_file).to_dict('records')}
+        # self.rng = np.random.default_rng(self.seed)
+    def load_audio(self, path):
+        audio, sr = sf.read(path)
+        audio = torch.FloatTensor(audio)
+        if audio.dim() == 1:
+            audio = audio.unsqueeze(0)
+        elif audio.dim() == 2:
+            audio = audio[:, 0].unsqueeze(0)
+        else:
+            raise ValueError(f'Invalid audio shape {audio.shape}')
+        audio = torch.FloatTensor(audio)
+        return audio, sr
+    
+    def forward(self, x, *args, **kwargs):
+        if not isinstance(x, torch.Tensor):
+            x = torch.FloatTensor(x)
+        xlen = x.shape[-1]
+        seed = time.time_ns()+os.getpid()
+        rng = np.random.default_rng(seed)
+        def get_random_rir():
+            rir_file = os.path.join(self.rir_dir, self.rir_files[rng.choice(len(self.rir_files))])
+            rir_raw, sample_rate = self.load_audio(rir_file)
+            if sample_rate != 16000:
+                rir_raw = torchaudio.transforms.Resample(sample_rate, 16000)(rir_raw)
             rir = rir_raw[:, int(sample_rate * .01) : ]
             return rir
         rir = get_random_rir()
@@ -385,6 +476,38 @@ class LowPassFilter(SoxEffect):
     
     def __repr__(self):
         return f"LowPassFilter({self.args})"
+
+class TremoloFilter(SoxEffect):
+    def __init__(self, depth, sample_rate=16000) -> None:
+        args = ['20', f'{depth}']
+        super().__init__('tremolo', *args, sample_rate=sample_rate)
+    
+    def __repr__(self):
+        return f"Tremolo({self.args})"
+    
+class TrebleFilter(SoxEffect):
+    def __init__(self, gain, sample_rate=16000) -> None:
+        args = [str(gain)]
+        super().__init__('treble', *args, sample_rate=sample_rate)
+    
+    def __repr__(self):
+        return f"Treble({self.args})"
+
+class BassFilter(SoxEffect):
+    def __init__(self, gain, sample_rate=16000) -> None:
+        args = [str(gain)]
+        super().__init__('bass', *args, sample_rate=sample_rate)
+    
+    def __repr__(self):
+        return f"Treble({self.args})"
+    
+class ChorusFilter(SoxEffect):
+    def __init__(self, delay, sample_rate=16000) -> None:
+        args = f"0.7 0.9 {delay} 0.4 0.25 2 -t {delay+10} 0.3 0.4 2 -s".split()
+        super().__init__('chorus', *args, sample_rate=sample_rate)
+    
+    def __repr__(self):
+        return f"Chorus({self.args})"
     
 class Compose(torch.nn.Module):
     def __init__(self, transforms) -> None:
@@ -402,7 +525,7 @@ class Compose(torch.nn.Module):
                 x = t(speech)
         return x
     
-NOISE_SNRS = [30, 10, 5, 1, -10]
+NOISE_SNRS = [40, 30, 20, 10, 0]
 ADV_SNRS = [50, 40, 30, 20, 10]
 SPEEDUP_FACTORS = [1, 1.25, 1.5, 1.75, 2]
 SLOWDOWN_FACTORS = [1, 0.875, 0.75, 0.625, 0.5]
@@ -414,6 +537,10 @@ ECHO_DELAYS = [0, 125, 250, 500, 1000]
 PHASER_DECAYS = [0.1, 0.3, 0.5, 0.7, 0.9]
 LOWPASS_FREQS = [8000] + np.linspace(4000, 500, 4).astype(int).tolist()
 HIGHPASS_FREQS = [0] + np.linspace(500, 3000, 4).astype(int).tolist()
+TREMOLO_DEPTHS = [0] + np.linspace(50, 100, 4).astype(int).tolist()
+TREBLE_GAIN = [1] + np.linspace(10, 50, 4).astype(int).tolist()
+BASS_GAIN = [1] + np.linspace(20, 50, 4).astype(int).tolist()
+CHORUS_DELAY = [0, 30, 50, 70, 90]
 VC_ACCENTS = [[], ['bdl', 'slt', 'rms', 'clb'], ['jmk'], ['ksp'], ['awb']]
 # VC_VCTK_ACCENTS = [['English'], ['Scottish'], ['NorthernIrish'], ['Irish'], ['Indian'], ['Welsh'],
 #        ['American'], ['Canadian'], ['SouthAfrican'], ['Australian'],
@@ -425,14 +552,17 @@ VC_VCTK_ACCENTS = [[], ['English', 'Scottish', 'NorthernIrish', 'Irish', 'Indian
 AUGMENTATIONS = {
     # 'unoise': (UniformNoise, NOISE_SNRS),
     'gnoise': (GaussianNoise, NOISE_SNRS),
-    # 'env_noise': (EnvNoise, NOISE_SNRS),
+    'env_noise': (EnvNoise, NOISE_SNRS),
     'env_noise_esc50': (EnvNoiseESC50, NOISE_SNRS),
+    'env_noise_musan': (EnvNoiseMUSAN, NOISE_SNRS),
+    'env_noise_wham': (EnvNoiseWHAM, NOISE_SNRS),
     'speedup': (Speed, SPEEDUP_FACTORS),
     'slowdown': (Speed, SLOWDOWN_FACTORS),
     'pitch_up': (Pitch, PITCH_UP_STEPS),
     'pitch_down': (Pitch, PITCH_DOWN_STEPS),
     'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
     'rir': (RIR, [0,1,2,3,4]),
+    'real_rir': (RealRIR, [0,1,2,3,4]),
     # 'voice_conversion': (VoiceConversion, VC_ACCENTS),
     'voice_conversion_vctk': (VoiceConversionVCTK, VC_VCTK_ACCENTS),
     'resample': (ResamplingNoise, RESAMPLING_FACTORS),
@@ -443,6 +573,15 @@ AUGMENTATIONS = {
     'tempo_down': (Tempo, SLOWDOWN_FACTORS),
     'lowpass': (LowPassFilter, LOWPASS_FREQS),
     'highpass': (HighPassFilter, HIGHPASS_FREQS),
+    'music': (MusicMUSAN, NOISE_SNRS),
+    'crosstalk': (SpeechMUSAN, NOISE_SNRS),
+    'accent': (None, [None, None]),
+    'itw_nf': (None, [None, None]),
+    'itw_ff': (None, [None, None]),
+    'tremolo': (TremoloFilter, TREMOLO_DEPTHS),
+    'treble': (TrebleFilter, TREBLE_GAIN),
+    'bass': (BassFilter, BASS_GAIN),
+    'chorus': (ChorusFilter, CHORUS_DELAY),
 }
 
 PERT_ROB_AUGMENTATIONS = {
