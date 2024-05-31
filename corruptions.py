@@ -578,6 +578,8 @@ AUGMENTATIONS = {
     'accent': (None, [None, None]),
     'itw_nf': (None, [None, None]),
     'itw_ff': (None, [None, None]),
+    'itw_nf_ami': (None, [None, None]),
+    'itw_ff_ami': (None, [None, None]),
     'tremolo': (TremoloFilter, TREMOLO_DEPTHS),
     'treble': (TrebleFilter, TREBLE_GAIN),
     'bass': (BassFilter, BASS_GAIN),

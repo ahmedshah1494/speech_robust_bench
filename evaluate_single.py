@@ -81,11 +81,15 @@ if __name__ == '__main__':
         else:
             raise ValueError(f'Augmentation {aug} is not supported for language {args.language}')
     elif aug.startswith('itw'):
-        if (args.language == 'English'):            
+        if (args.language == 'English'):
             if aug == 'itw_nf':
                 dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='nearfield')
             elif aug == 'itw_ff':
                 dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='farfield')
+            elif aug == 'itw_nf_ami':
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-ami', split='nearfield')
+            elif aug == 'itw_ff_ami':
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-ami', split='farfield')
             else:
                 raise ValueError(f'Augmentation {aug} is not supported. Must be one of itw-nf or itw-ff')
         else:

@@ -100,8 +100,10 @@ language = dataset2lang[args.dataset][1]
 def create_cmd(model, delta_path, aug, sev):
     if aug == 'accent':
         dataset = 'common_voice'
-    elif aug in ['itw-nf', 'itw-ff']:
+    elif aug in ['itw_nf', 'itw_ff']:
         dataset = 'chime'
+    elif aug in ['itw_nf_ami', 'itw_ff_ami']:
+        dataset = 'ami'
     else:
         dataset = args.dataset
     cmd = f'python evaluate_single.py --model_name {model} --batch_size {args.batch_size}  --dataset {dataset} --split {args.split} --language {language} --output_dir {args.output_dir}'
@@ -141,12 +143,6 @@ for model_data in models:
     if args.run_accent_eval:
         cmd = create_cmd(model, delta_path, 'accent', 0)
         Q.put(cmd)
-
-    # if args.run_itw_eval:
-    #     cmd = create_cmd(model, delta_path, 'itw-nf', 0)
-    #     Q.put(cmd)
-    #     cmd = create_cmd(model, delta_path, 'itw-ff', 0)
-    #     Q.put(cmd)
 
     if args.run_perturb_robustness_eval:
         for aug, (augcls, settings) in PERT_ROB_AUGMENTATIONS.items():
