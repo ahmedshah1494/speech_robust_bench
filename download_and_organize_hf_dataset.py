@@ -18,10 +18,19 @@ ds = ds.cast_column("audio", Audio(sampling_rate=16_000))
 
 for x in tqdm.tqdm(ds):
     uid = x['id']
-    uid = uid.replace("_","-")
     wav = x['audio']['array']
 
-    spkid, chid, _ = uid.split('-')
+    if args.dataset == 'LIUM/tedlium':
+        if uid.startswith('inter_segment_gap'):
+            continue
+        spkid, rest = uid.split('-', 1)
+        if '_' in spkid:
+            chid = spkid.split('_')[1]
+        else:
+            chid = 0
+    else:
+        uid = uid.replace("_","-")
+        spkid, chid, _ = uid.split('-')
     odir = f'{args.output_dir}/{spkid}/{chid}/'
     os.makedirs(odir, exist_ok=True)
     soundfile.write(f'{odir}/{uid}.flac', wav, 16000)
