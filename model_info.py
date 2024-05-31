@@ -18,7 +18,9 @@ model_to_params = {
     'emformer-rnnt': 76e6,
     'mms-1b-fl102': 964648576,
     'wav2vec2-base-10k-voxpopuli-ft-es': 94371712,
-    'wav2vec2-large-xlsr-53-spanish': 315438720
+    'wav2vec2-large-xlsr-53-spanish': 315438720,
+    'canary-1b': 1e9,
+    'speecht5_asr': 154588800
 }
 model_to_traindata = {
     'whisper-large-v2': 680000,
@@ -40,7 +42,9 @@ model_to_traindata = {
     'emformer-rnnt': 960,
     'mms-1b-fl102': 55000,
     'wav2vec2-base-10k-voxpopuli-ft-es': 10116,
-    'wav2vec2-large-xlsr-53-spanish': 54350
+    'wav2vec2-large-xlsr-53-spanish': 54350,
+    'canary-1b':85000,
+    'speecht5_asr': 960
 }
 model_to_year = {
     'whisper-large-v2': 2023,
@@ -62,7 +66,9 @@ model_to_year = {
     'emformer-rnnt': 2020,
     'mms-1b-fl102': 2023,
     'wav2vec2-base-10k-voxpopuli-ft-es': 2021,
-    'wav2vec2-large-xlsr-53-spanish': 2020
+    'wav2vec2-large-xlsr-53-spanish': 2020,
+    'canary-1b':2024,
+    'speecht5_asr': 2022
 }
 model_to_abrv = {
     'whisper-large-v2': 'wsp-lg',
@@ -84,5 +90,7 @@ model_to_abrv = {
     'emformer-rnnt': 'emf-rnnt',
     'mms-1b-fl102': 'mms-1b',
     'wav2vec2-base-10k-voxpopuli-ft-es': 'w2v2-bs-es',
-    'wav2vec2-large-xlsr-53-spanish': 'w2v2-lg-es'
+    'wav2vec2-large-xlsr-53-spanish': 'w2v2-lg-es',
+    'canary-1b': 'cnry-1b',
+    'speecht5_asr': 'spch-t5'
 }
