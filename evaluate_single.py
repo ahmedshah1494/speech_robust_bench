@@ -1,18 +1,11 @@
-from datasets import load_dataset, Audio, concatenate_datasets
-from transformers import pipeline
-from transformers.pipelines.pt_utils import KeyDataset
-import torch
-import evaluate
-import numpy as np
-import pandas as pd
 from argparse import ArgumentParser
 from tqdm import tqdm
 import os
 from copy import deepcopy
 import string
-from corruptions import *
-from create_transformed_datasets import load_augmentation, transform_dataset, parse_augmentation
 from multiprocessing import cpu_count
+import torch
+from create_transformed_datasets import load_augmentation, transform_dataset, parse_augmentation
 
 N_CPUS = cpu_count()
 N_GPUS = torch.cuda.device_count()
@@ -66,15 +59,37 @@ if __name__ == '__main__':
         while os.path.exists(ofp):
             i += 1
             ofp = f'{odir}/{ofn}_{i}.tsv'
+    from datasets import load_dataset, Audio, concatenate_datasets
+    from transformers.pipelines.pt_utils import KeyDataset
+    import evaluate
+    import numpy as np
+    import pandas as pd
+    from corruptions import *
 
     if (args.augmentation is None) or (aug == 'universal_adv'):
         dataset = load_dataset(args.dataset, args.subset, split=args.split)
+        dataset = dataset.filter(lambda x: not x['id'].startswith('inter_segment_gap'))
         dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
         if aug == 'universal_adv':
             transform = load_augmentation(aug, sev, args.universal_delta_path)
             dataset = transform_dataset(dataset, transform)
 
         print(dataset)
+    elif aug == 'accent':
+        if (args.language == 'English'):
+            dataset = load_dataset(args.srb_hf_repo, 'accented_cv', split='test.clean')
+        else:
+            raise ValueError(f'Augmentation {aug} is not supported for language {args.language}')
+    elif aug.startswith('itw'):
+        if (args.language == 'English'):            
+            if aug == 'itw_nf':
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='nearfield')
+            elif aug == 'itw_ff':
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='farfield')
+            else:
+                raise ValueError(f'Augmentation {aug} is not supported. Must be one of itw-nf or itw-ff')
+        else:
+            raise ValueError(f'Augmentation {aug} is not supported for language {args.language}')    
     else:
         subset = f'{args.subset}_{args.split}' if args.subset else args.split
         if args.run_perturb_robustness_eval:
@@ -149,6 +164,43 @@ if __name__ == '__main__':
                         text = token_processor(hypotheses[0][0])
                         yield {'text': text}
         pipe = transcribe(dataloader)
+    elif args.model_name.startswith('nvidia/canary'):
+        from nemo.collections.asr.models import EncDecMultiTaskModel
+        from scipy.io import wavfile
+        model = EncDecMultiTaskModel.from_pretrained('nvidia/canary-1b')
+        decode_cfg = model.cfg.decoding
+        decode_cfg.beam.beam_size = 1
+        model.change_decoding_strategy(decode_cfg)
+        # if aug == 'universal_adv':
+        #     print(f'Adversarial attacks against {args.model_name} are not supported.')
+        # else:
+        import tempfile, json
+        long2short_lang = {
+            'English': 'en',
+            'Spanish': 'es'
+        }
+        with tempfile.NamedTemporaryFile(suffix='.json', mode='w') as tmp:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                print(f'writing creating manifest in {tmp.name}...')
+                for i, item in tqdm(enumerate(dataset)):
+                    tmpaudiofile = os.path.join(tmpdir, f"{item['id']}.wav")
+                    wavfile.write(tmpaudiofile, 16000, item['audio']['array'])
+                    r = {
+                            "audio_filepath": tmpaudiofile,  # path to the audio file
+                            "duration": item['audio']['array'].shape[-1],  # duration of the audio, can be set to `None` if using NeMo main branch
+                            "taskname": "asr",  # use "s2t_translation" for speech-to-text translation with r1.23, or "ast" if using the NeMo main branch
+                            "source_lang": long2short_lang[args.language],  # language of the audio input, set `source_lang`==`target_lang` for ASR, choices=['en','de','es','fr']
+                            "target_lang": long2short_lang[args.language],  # language of the text output, choices=['en','de','es','fr']
+                            "pnc": "yes",  # whether to have PnC output, choices=['yes', 'no']
+                            "answer": "na", 
+                        }
+                    tmp.write(json.dumps(r)+'\n')
+                    tmp.flush()
+                transcripts = model.transcribe(paths2audio_files=tmp.name, batch_size=args.batch_size)
+            # def pipe():
+            #     for t in transcripts:
+            #         yield {'text': t}
+            pipe = [{'text':t} for t in transcripts]
     else:
         if args.model_parallelism: 
             kwargs = {'device_map': 'auto'}
@@ -172,6 +224,8 @@ if __name__ == '__main__':
             model.load_adapter(args.language)
             model = model.to(torch.float16)
         print(kwargs)
+        print(model)
+        from transformers import pipeline
         pipe = pipeline("automatic-speech-recognition", model=model, batch_size=args.batch_size, torch_dtype=torch.float16, **kwargs, generate_kwargs=gen_kwargs)
         pipe = pipe(KeyDataset(dataset, "audio"))
     
