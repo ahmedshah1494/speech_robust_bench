@@ -74,7 +74,7 @@ for root, dirs, files in os.walk(adv_results_dir):
         model = root.split('/')[-2]
         print(root)
         augmentation = root.split('/')[-4]
-        if augmentation == 'universal':
+        if augmentation not in ['pgd']:
             continue
         snr = int(model.split('-')[-1])
         if snr not in snr_to_sev:
@@ -183,7 +183,7 @@ for rfp in result_files:
         noise = noise_sev
         sev = 0
 
-    df = pd.read_csv(rfp, sep='\t', usecols=[1,2,3,4,5])
+    df = pd.read_csv(rfp, sep='\t', usecols=['id', 'reference', 'prediction', 'wer', 'cer'])
     df['model'] = model
     df['augmentation'] = noise
     df['severity'] = sev
