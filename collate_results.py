@@ -3,10 +3,12 @@ import numpy as np
 from scipy.stats import iqr
 import os
 import argparse
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--results_dir', default='outputs', help='Directory containing the results of the perturbation robustness evaluation. default: ./outputs')
-parser.add_argument('--robust_speech_data_root', default=f'{os.environ["SRB_ROOT"]}/robust_speech_data_root', help='Directory containing the results of the perturbation robustness evaluation. default: .$SRB_ROOT/robust_speech_data_root')
+parser.add_argument('--robust_speech_data_root', help='Directory containing the results of the perturbation robustness evaluation. default: robust_speech/advattack_data_and_results', default='robust_speech/advattack_data_and_results')
+parser.add_argument('--speech_metrics_dir', help='Directory containing speechmetrics', default='speechmetrics_csv')
 args = parser.parse_args()
 
 results_dir = args.results_dir
@@ -62,6 +64,56 @@ def load_full_result_from_adv_file(fname):
     df = pd.DataFrame(rows)
     return df
 
+avg_speech_metrics = []
+all_speech_metrics = []
+for root, dirs, files in os.walk(args.speech_metrics_dir):
+    for fl in files:
+        if fl.endswith('.csv'):
+            print(os.path.join(root, fl))
+            df = pd.read_csv(os.path.join(root, fl))
+            metric, dataset = root.split('/')[-2:]
+            if 'DNSMOS' in root:
+                df.rename({'P808_MOS':'DNSMOS'}, axis=1, inplace=True)
+                metric = 'DNSMOS'
+            dataset = dataset.replace('speech_robust_bench_', '')
+            fl_split = fl.split('.')
+            if len(fl_split) == 3:
+                aug, sev = fl_split[:2]
+                try:
+                    sev = int(sev)
+                except:
+                    sev = sev
+            elif len(fl_split) == 2:
+                aug = fl_split[0]
+                sev = 1
+            
+            avg_metric = np.nanmean(df[metric].values)
+            r = {
+                'dataset': dataset,
+                'augmentation': aug,
+                'severity': sev,
+                'metric': metric,
+                'metric_value': avg_metric,
+                'runid': 0,
+            }
+            # if np.isnan(avg_metric):
+            #     print(f'NAN value for {metric} in {dataset} {aug} {sev}')
+            #     print(r)
+            #     print(df)
+                
+            avg_speech_metrics.append(r)
+            df.rename({metric:'metric_value'}, axis=1, inplace=True)
+            df['metric'] = metric
+            df['dataset'] = dataset
+            df['augmentation'] = aug
+            df['severity'] = sev
+            df['runid'] = 0
+            df = df[['filename', 'dataset', 'augmentation', 'severity', 'runid', 'metric', 'metric_value']]
+            all_speech_metrics.append(df)
+pd.DataFrame(avg_speech_metrics).to_csv('results/speechmetrics.csv', index=False)
+smdf = pd.concat(all_speech_metrics)
+smdf.to_csv('results/all_speechmetrics.csv', index=False)
+# exit()
 adv_results_dir = f'{args.robust_speech_data_root}/attacks'
 adv_results = []
 adv_result_dfs = []
