@@ -53,7 +53,7 @@ if __name__ == '__main__':
         i = 0
         ofp = f'{odir}/{ofn}_{i}.tsv'
         # print(ofp, os.path.exists(ofp))
-        if args.skip_if_result_exists and (os.path.exists(ofp) or ((i == 1) and os.path.exists(f'{odir}/{ofn}.tsv'))):
+        if args.skip_if_result_exists and any([f.startswith(ofn) for f in os.listdir(odir)]):#(os.path.exists(ofp) or ((i == 0) and os.path.exists(f'{odir}/{ofn}.tsv'))):
             print(f'Skipping {ofp}')
             exit()
         while os.path.exists(ofp):
@@ -87,9 +87,9 @@ if __name__ == '__main__':
             elif aug == 'itw_ff':
                 dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='farfield')
             elif aug == 'itw_nf_ami':
-                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-ami', split='nearfield')
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-AMI', split='nearfield')
             elif aug == 'itw_ff_ami':
-                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-ami', split='farfield')
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-AMI', split='farfield')
             else:
                 raise ValueError(f'Augmentation {aug} is not supported. Must be one of itw-nf or itw-ff')
         else:
