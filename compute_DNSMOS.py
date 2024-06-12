@@ -167,7 +167,7 @@ if __name__=="__main__":
     parser.add_argument('--dataset', default="librispeech_asr")
     parser.add_argument('--subset', default=None)
     parser.add_argument('--split', default='test.clean')
-    parser.add_argument('-o', '--output_dir', default='dnsmos_csv')
+    parser.add_argument('-o', '--output_dir', default='speechmetrics_csv/DNSMOS')
     parser.add_argument('-p', "--personalized_MOS", action='store_true', 
                         help='Flag to indicate if personalized MOS score is needed or regular')
     
