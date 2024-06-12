@@ -560,7 +560,6 @@ AUGMENTATIONS = {
     'slowdown': (Speed, SLOWDOWN_FACTORS),
     'pitch_up': (Pitch, PITCH_UP_STEPS),
     'pitch_down': (Pitch, PITCH_DOWN_STEPS),
-    'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
     'rir': (RIR, [0,1,2,3,4]),
     'real_rir': (RealRIR, [0,1,2,3,4]),
     # 'voice_conversion': (VoiceConversion, VC_ACCENTS),
@@ -575,15 +574,16 @@ AUGMENTATIONS = {
     'highpass': (HighPassFilter, HIGHPASS_FREQS),
     'music': (MusicMUSAN, NOISE_SNRS),
     'crosstalk': (SpeechMUSAN, NOISE_SNRS),
+    'tremolo': (TremoloFilter, TREMOLO_DEPTHS),
+    'treble': (TrebleFilter, TREBLE_GAIN),
+    'bass': (BassFilter, BASS_GAIN),
+    'chorus': (ChorusFilter, CHORUS_DELAY),
     'accent': (None, [None, None]),
     'itw_nf': (None, [None, None]),
     'itw_ff': (None, [None, None]),
     'itw_nf_ami': (None, [None, None]),
     'itw_ff_ami': (None, [None, None]),
-    'tremolo': (TremoloFilter, TREMOLO_DEPTHS),
-    'treble': (TrebleFilter, TREBLE_GAIN),
-    'bass': (BassFilter, BASS_GAIN),
-    'chorus': (ChorusFilter, CHORUS_DELAY),
+    'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
 }
 
 PERT_ROB_AUGMENTATIONS = {
