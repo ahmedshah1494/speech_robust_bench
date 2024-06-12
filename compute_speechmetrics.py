@@ -89,35 +89,41 @@ def create_metric_workers(n_workers):
 
 def main(args, metrics, clean_dataset, aug, sev, model=None):
     subset = None
-    if (aug == 'universal_adv'):
-        from create_transformed_datasets import load_augmentation, transform_dataset
-        dataset = load_dataset(args.dataset, args.subset, split=args.split)
-        dataset = dataset.filter(lambda x: not x['id'].startswith('inter_segment_gap'))
-        dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-        delta_path = find_path_to_univeral_adv(model, args.universal_adv_dir)
-        transform = load_augmentation(aug, sev, delta_path)
-        dataset = transform_dataset(dataset, transform)
+    try:
+        if (aug == 'universal_adv'):
+            from create_transformed_datasets import load_augmentation, transform_dataset
+            dataset = load_dataset(args.dataset, args.subset, split=args.split)
+            dataset = dataset.filter(lambda x: not x['id'].startswith('inter_segment_gap'))
+            dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
+            delta_path = find_path_to_univeral_adv(model, args.universal_adv_dir)
+            transform = load_augmentation(aug, sev, delta_path)
+            dataset = transform_dataset(dataset, transform)
 
-        print(dataset)
-    elif aug == 'accent':
-        if (args.language == 'English') and (args.dataset == 'common_voice'):
+            print(dataset)
+        elif aug == 'accent':
             dataset = load_dataset(args.srb_hf_repo, 'accented_cv', split='test.clean')
-        else:
-            raise ValueError(f'Augmentation {aug} is not supported for language {args.language} and dataset {args.dataset}')
-    elif aug.startswith('itw'):
-        if (args.language == 'English') and (args.dataset == 'chime6'):            
+            args.dataset = 'common_voice'
+        elif aug.startswith('itw'):
             if aug == 'itw_nf':
                 dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='nearfield')
+                args.dataset = 'chime6'
             elif aug == 'itw_ff':
                 dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='farfield')
+                args.dataset = 'chime6'
+            elif aug == 'itw_nf_ami':
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-AMI', split='nearfield')
+                args.dataset = 'ami'
+            elif aug == 'itw_ff_ami':
+                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-AMI', split='farfield')
+                args.dataset = 'ami'
             else:
                 raise ValueError(f'Augmentation {aug} is not supported. Must be one of itw-nf or itw-ff')
         else:
-            raise ValueError(f'Augmentation {aug} is not supported for language {args.language}')
-    else:
-        subset = f'{args.subset}_{args.split}' if args.subset else args.split
-        split = f'{aug}.{sev}'
-        dataset = load_dataset(args.srb_hf_repo, f'{args.dataset.split("/")[-1]}-{subset}', split=split)
+            subset = f'{args.subset}_{args.split}' if args.subset else args.split
+            split = f'{aug}.{sev}'
+            dataset = load_dataset(args.srb_hf_repo, f'{args.dataset.split("/")[-1]}-{subset}', split=split)
+    except Exception as e:
+        print(e)
     
     ds_name = args.dataset.split('/')[-1]
     subset = f'_{subset}' if subset is not None else ''
@@ -172,7 +178,7 @@ if __name__=="__main__":
     parser.add_argument('--split', default='test.clean')
     parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench')
     parser.add_argument('--universal_adv_dir', default=None, help='Path to the directory containing universal adversarial perturbations')
-    parser.add_argument('-o', '--output_dir', default='speechmetrics_csv')
+    parser.add_argument('-o', '--output_dir', default='speechmetrics_csv/PESQ')
     
     args = parser.parse_args()
     clean_dataset = load_dataset(args.dataset, args.subset, split=args.split)
