@@ -14,12 +14,12 @@ def run_cmd(queue, device_id):
         if os.system(cmd):
             print(f'Error running {cmd}')
 
-def find_path_to_univeral_adv(model, root):
+def find_path_to_univeral_adv(model, root, snr=10):
     if root is None:
         print(f'WARNING: No universal adversarial perturbation directory provided for {model}. The model will not be evaluated against universal adversarial perturbations.')
         return None
     model_name = model.split('/')[-1]
-    dirpath = os.path.join(root, f'{model_name}-10')
+    dirpath = os.path.join(root, f'{model_name}-{snr}')
     delta_paths = []
     for root, dirs, files in os.walk(dirpath):
         for file in files:
@@ -27,12 +27,14 @@ def find_path_to_univeral_adv(model, root):
                 delta_paths.append(os.path.join(root, file))
     if len(delta_paths) > 0:
         return sorted(delta_paths)[-1]
+    elif snr != 10:
+        return find_path_to_univeral_adv(model, root, snr=10)
     else:
         return None
 
 en_models = [
     ('openai/whisper-tiny.en', 'robust_speech/advattack_data_and_results/attacks/universal/whisper-tiny.en-10/1002/CKPT+2023-11-27+19-04-38+00/delta.ckpt'),
-    ('deepspeech', 'robust_speech/advattack_data_and_results/attacks/universal/deepspeech-10/1002/CKPT+2023-11-27+17-27-39+00/delta.ckpt'),
+    # ('deepspeech', 'robust_speech/advattack_data_and_results/attacks/universal/deepspeech-10/1002/CKPT+2023-11-27+17-27-39+00/delta.ckpt'),
     ('facebook/wav2vec2-base-960h', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-base-960h-10/1002/CKPT+2023-11-27+15-58-14+00/delta.ckpt'),
     ('facebook/wav2vec2-large-960h-lv60-self', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-large-960h-lv60-self-10/1002/CKPT+2023-11-27+16-06-02+00/delta.ckpt'),
     ('facebook/hubert-large-ls960-ft', 'robust_speech/advattack_data_and_results/attacks/universal/hubert-large-ls960-ft-10/1002/CKPT+2023-11-27+15-56-27+00/delta.ckpt'),
@@ -135,10 +137,7 @@ else:
 print(models)
 for model_data in models:
     model = model_data[0]
-    if args.run_universal_adv_eval or args.run_universal_adv_eval_only:
-        delta_path = find_path_to_univeral_adv(model, args.universal_adv_delta_path)
-    else:
-        delta_path = ''
+    delta_path = ''
     
     if args.run_accent_eval:
         cmd = create_cmd(model, delta_path, 'accent', 0)
@@ -150,6 +149,9 @@ for model_data in models:
             Q.put(cmd)
     elif args.run_universal_adv_eval_only:
         for i in range(1, 5):
+            _, snrs = AUGMENTATIONS['universal_adv']
+            delta_path = find_path_to_univeral_adv(model, args.universal_adv_delta_path, snr=snrs[i])
+            print(model, snrs[i], delta_path)
             cmd = create_cmd(model, delta_path, 'universal_adv', i)
             Q.put(cmd)
     else:
