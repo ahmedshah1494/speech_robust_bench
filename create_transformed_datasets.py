@@ -150,10 +150,11 @@ if __name__ == '__main__':
     dataset = load_dataset(args.dataset, args.subset, split=args.split)
     dataset = dataset.filter(lambda x: not x['id'].startswith('inter_segment_gap'))
     dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-    if args.run_perturb_robustness_eval:
-        dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
-    else:
-        dataset = transform_dataset(dataset, transform)
+    if args.augmentation is not None:
+        if args.run_perturb_robustness_eval:
+            dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
+        else:
+            dataset = transform_dataset(dataset, transform)
 
     subset = f'{args.subset}_{args.split}' if args.subset else args.split
     if aug == 'universal_adv':
