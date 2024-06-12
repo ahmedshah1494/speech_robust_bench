@@ -267,7 +267,9 @@ for rfp in result_files:
         'CED': cerrs.sum(),
         'nwords': nwords.sum(),
         'nchars': nchars.sum(),
+        'nutts': len(df),
         'runid': runid,
+        'run_time': os.path.getmtime(rfp)
         # 'WER (avg)': np.mean(wers),
         # 'WER (std)': np.std(wers),
         # 'WER (median)': np.median(wers),
