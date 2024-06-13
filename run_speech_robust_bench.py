@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from create_transformed_datasets import AUGMENTATIONS, PERT_ROB_AUGMENTATIONS
+from corruption_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS, PERT_ROB_AUGMENTATIONS_2_SEV as PERT_ROB_AUGMENTATIONS
 from torch.cuda import device_count
 from multiprocessing import Queue, Process
 import os
@@ -34,7 +34,7 @@ def find_path_to_univeral_adv(model, root, snr=10):
 
 en_models = [
     ('openai/whisper-tiny.en', 'robust_speech/advattack_data_and_results/attacks/universal/whisper-tiny.en-10/1002/CKPT+2023-11-27+19-04-38+00/delta.ckpt'),
-    # ('deepspeech', 'robust_speech/advattack_data_and_results/attacks/universal/deepspeech-10/1002/CKPT+2023-11-27+17-27-39+00/delta.ckpt'),
+    ('deepspeech', 'robust_speech/advattack_data_and_results/attacks/universal/deepspeech-10/1002/CKPT+2023-11-27+17-27-39+00/delta.ckpt'),
     ('facebook/wav2vec2-base-960h', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-base-960h-10/1002/CKPT+2023-11-27+15-58-14+00/delta.ckpt'),
     ('facebook/wav2vec2-large-960h-lv60-self', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-large-960h-lv60-self-10/1002/CKPT+2023-11-27+16-06-02+00/delta.ckpt'),
     ('facebook/hubert-large-ls960-ft', 'robust_speech/advattack_data_and_results/attacks/universal/hubert-large-ls960-ft-10/1002/CKPT+2023-11-27+15-56-27+00/delta.ckpt'),
@@ -89,7 +89,7 @@ parser.add_argument('--output_dir', default='outputs', help='Output directory fo
 parser.add_argument('--skip_if_result_exists', action='store_true', help='Skip evaluation if result file for this model, augmentation and severity exists.')
 parser.add_argument('--overwrite_result_file', action='store_true')
 parser.add_argument('--run_accent_eval', action='store_true')
-parser.add_argument('--run_itw_eval', action='store_true', help='evaluate on in-the-wild data from CHiME')
+parser.add_argument('--run_itw_eval', action='store_true', help='evaluate on in-the-wild data from CHiME and AMI')
 parser.add_argument('--run_universal_adv_eval', action='store_true')
 parser.add_argument('--run_universal_adv_eval_only', action='store_true')
 parser.add_argument('--universal_adv_delta_path', help='Directory containing the utterance agnoistic (universal) adversarial perturbations. The script will look for files named delta.ckpt <universal_adv_delta_path>/<model_name>. If multiple are found the full paths to the files will be lexically sorted and the last one will be selected.')
@@ -144,12 +144,12 @@ for model_data in models:
         Q.put(cmd)
 
     if args.run_perturb_robustness_eval:
-        for aug, (augcls, settings) in PERT_ROB_AUGMENTATIONS.items():
+        for aug, settings in PERT_ROB_AUGMENTATIONS.items():
             cmd = create_cmd(model, delta_path, aug, 1)
             Q.put(cmd)
     elif args.run_universal_adv_eval_only:
         for i in range(1, 5):
-            _, snrs = AUGMENTATIONS['universal_adv']
+            snrs = AUGMENTATIONS['universal_adv']
             delta_path = find_path_to_univeral_adv(model, args.universal_adv_delta_path, snr=snrs[i])
             print(model, snrs[i], delta_path)
             cmd = create_cmd(model, delta_path, 'universal_adv', i)
@@ -158,7 +158,7 @@ for model_data in models:
         if (not args.run_universal_adv_eval_only) and (args.augmentations is None):
             cmd = create_cmd(model, delta_path, None, None)
             Q.put(cmd)
-        for aug, (augcls, settings) in AUGMENTATIONS.items():
+        for aug, settings in AUGMENTATIONS.items():
             print(aug, args.augmentations)
             if (args.augmentations is not None) and (aug not in args.augmentations):
                 continue
