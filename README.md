@@ -1,16 +1,16 @@
 # Speech Robust Bench
-This repository contains the code for the paper "Speech Robust Bench: A Robustness Benchmark For Speech Recognition". 
-Speech Robust Bench (SRB), a comprehensive benchmark for evaluating the robustness of ASR models to diverse corruptions. SRB is composed of 69 input perturbations which are intended to simulate various corruptions that ASR models may encounter in the physical and digital world. The taxonomy of perturbations is illustrated in the figure below. 
+This repository contains the code for the paper "Speech Robust Bench: A Robustness Benchmark For Speech Recognition" [\[arXiv\]](https://arxiv.org/abs/2403.07937). 
+Speech Robust Bench (SRB), a comprehensive benchmark for evaluating the robustness of ASR models to diverse corruptions. SRB is composed of 114 input perturbations which are intended to simulate various corruptions that ASR models may encounter in the physical and digital world. The taxonomy of perturbations is illustrated in the figure below, and further details can be found in Section 3.2 and Appendix A of the paper (linked above). 
 
 <img src="taxonomy.png" alt="perturbation taxonomy" width="500"/>
 
-All the perturbations, except Text2speech are applied at 4 levels of increasing severity. We have made perturbed versions of the Librispeech test-clean and the Multi-lingual Librispeech Spanish test set available on Huggingface hub [\[link\]](https://huggingface.co/datasets/mshah1/speech_robust_bench). The dataset is fully compatible with the Huggingface library and can easily be used to evaluate the robustness of ASR models.
+We have made perturbed versions of the Librispeech test-clean, Multi-lingual Librispeech Spanish test set and TEDLIUM release-3 test available on Huggingface hub [\[link\]](https://huggingface.co/datasets/mshah1/speech_robust_bench). The dataset is fully compatible with the Huggingface library and can easily be used to evaluate the robustness of ASR models. The dataset on HuggingFace contains only the non-adversarial pertubations because the adversarial perturbation are model specific. Instructions for computing adversarial perturbations for your own models are provided [below](#evaluating-models-on-adversarial-perturbations).
 
 ## Installation
 In our experiments we used `Python 3.10`, `PyTorch 2.2.0`, `transformers 4.34.0`.
 ```
 conda create -n speech-robust-bench python=3.10
-pip install TTS==0.22.0
+[OPTIONAL -- not needed for eval] pip install TTS==0.22.0
 pip install -r requirements.txt
 cd robust_speech
 pip install -e .
@@ -68,11 +68,15 @@ python run_speech_robust_bench_adv.py --dataset LibriSpeech --data_root $SRB_ROO
 the results will be stored in `$SRB_ROOT/robust_speech_data_root/attacks/pgd/LibriSpeech`
 
 **Step 3: Evaluate against Universal Adversarial Perturbations**
+
+__Step 3.1: Compute the Perturbation__
 ```
 cd robust_speech/recipes
 python \<root\>run_speech_robust_bench_adv.py --dataset LibriSpeech --data_root $SRB_ROOT/robust_speech_data_root --attack_type universal
 ```
 the utterance agnostic perturbation will be stored in `$SRB_ROOT/robust_speech_data_root/attacks/universal/LibriSpeech/<model_name>/CKPT+<datetime>/delta.ckpt`
+
+__Step 3.2: Evaluate the Models__
 
 We can now use `run_speech_robust_bench_adv.py` to evaluate the models against the adversarial perturbations.
 ```
@@ -96,8 +100,94 @@ This script will generate 3 csv files in the `./results` directory:
 **Step 5: Computing Metrics**
 The following iPython notebooks can be used to replicate the results of the paper:
 - `result_analysis_utility.py`: Code for computing NWER and plotting the results of utility-based (WER and NWER) based analyses from the paper.
-- `result_analysis_stability.py`: Code for computing WERV and plotting the results of the stability-based analyses from the paper.
+<!-- - `result_analysis_stability.py`: Code for computing WERV and plotting the results of the stability-based analyses from the paper. -->
 - `gender_analysis.ipynb`: Code for analyzing the disparity in robustness across genders.
+
+## Evaluating Your Model
+To evaluate your custom model with the code in this repo perform the following steps.
+### Evaluating on Non-Adversarial Perturbations
+**Step 1: Define a Transcription Pipeline**
+
+__Step 1.1: Create models/{model_name}.py__
+
+In `models/{model_name}.py` define a the `create_model_pipeline` function with following minimal signature.
+```
+def create_model_pipeline(dataset, model, batch_size=1, gen_kwargs={}, **kwargs) -> Generator|Iterable:
+    '''
+    - Load model
+    pipe:
+      - iterate over dataset
+          - pass audio to model
+          - retrieve transcription
+          - yield {'text': transcription}
+    '''
+    return pipe
+```
+`create_model_pipeline` should return an Iterable or a Generator that yields a dictionary such as `{'text': transcription}` for each audio in the dataset. The `transcription` should be the output of the model for the audio.
+
+__Step 1.2: Add `create_model_pipeline` to `models/__init__.py`__
+
+Add an `elif` with your model name and the `create_model_pipeline` function to `models/__init__.py`. For example,
+```
+elif model == 'rnnt':
+    return rnnt.create_model_pipeline(dataset, batch_size=batch_size, **kwargs)
+```
+
+**Step 2: Evaluate the Model on Non-Adversarial Data**
+Just add your model name to the list of models in `run_speech_robust_bench.py` and run the script as described in the [Quick Start](#quick-start) section.
+
+### Evaluating on Adversarial Perturbations
+The steps for evaluating your model on adversarial perturbations are slightly more involved since we will need to make it amenable for evaluation with the `robust_speech` library.
+
+**Step 1: Create a config for your model**
+
+Create a [HyperYAML](https://github.com/speechbrain/HyperPyYAML) config for your model in `robust_speech/recipes/model_configs`. Any fields you define here can be used in the `AdvASRBrain` subclass for your model. You may look at `robust_speech/recipes/model_configs/canary-1b.yaml` and the configs in `robust_speech/recipes/model_configs/hf/` for examples. 
+
+*Note: The `placeholder_model` defined in all the configs is a requirement. It does not effect the output but is needed for things to work.*
+
+**Step 2: Create an `AdvASRBrain` subclass for your model**
+
+We have created a base subclass of `AdvASRBrain` called `BaseASR` in `robust_speech/models/base_robust_speech_model.py`. This subclass implements a lot of the boilerplate code needed for adversarial evaluation. You will need to subclass `BaseASR` and implement the unimplemented functions:
+- `eval_forward`: Forward pass of the model during evaluation. Should return loss and transcripts.
+- `train_attack_forward`: Forward pass of the model during adversarial attack generation or training. Should return loss and transcripts.
+- `text_to_tokens`: Convert a transcription to a list of tokens.
+- `wav_to_feats`: Convert a wav file to a feature tensor.
+
+You can look at `robust_speech/models/canary.py` for an example implementation.
+
+**Step 3: Create an Attack Config For Your Model**
+
+Create an attack config for your model in `robust_speech/recipes/attack_configs`. You can look at `robust_speech/recipes/attack_configs/canary-1b.yaml` for an example. Most of the fields in the config are shared across models. The fields you may need to change are:
+- `model_name`: The name of your model.
+- `target_brain_class`: Module path to the `AdvASRBrain` subclass for your model.
+- `target_brain_hparams_file`: Path to the HyperYAML config for your model.
+- `source_model_name`: Usually the same as `model_name`.
+- `source_brain_class`: Usually the same as `target_brain_class`.
+- `source_brain_hparams_file`: Usually the same as `target_brain_hparams_file`.
+
+You may change any paths you want to but the default paths should work out of the box
+
+**Step 4: Run the Adversarial Evaluation**
+
+You can now run the adversarial evaluation as described in the [Quick Start](#quick-start) section.
+
+## Perturbing a Custom Dataset
+
+You can perturb your own dataset using the `create_transformed_dataset.py` script. Currently the script pull the datasets from HuggingFace Hub but you can modify it to pull the datasets from any other source. The following code creates a perturbed version of the test-clean subset of Librispeech with Gaussian noise of severity level 1 and uploads it to the `<user>/<repo_name>` repo on Huggingface hub.
+```
+python create_transformed_dataset.py --augmentation gnoise:1 --dataset=librispeech_asr --split test.clean --srb_hf_repo <user>/<repo_name>
+```
+
+## Citation
+If you use this code in your research, please cite the following paper:
+```
+@article{shah2024speech,
+  title={Speech Robust Bench: A Robustness Benchmark For Speech Recognition},
+  author={Shah, Muhammad A and Noguero, David Solans and Heikkila, Mikko A and Kourtellis, Nicolas},
+  journal={arXiv preprint arXiv:2403.07937},
+  year={2024}
+}
+```
 
 <!-- ## Data
 The evaluation code (introduced below) expects the datasets perturbed by _non-adversarial_ perturbations to be precomputed and uploaded to Huggingface hub. 
