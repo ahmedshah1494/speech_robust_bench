@@ -1,7 +1,7 @@
 import speechmetrics
 import argparse
 from datasets import load_dataset, Audio
-from corruptions import AUGMENTATIONS
+from corruptions_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS
 import pandas as pd
 import os
 from tqdm import tqdm
@@ -186,7 +186,7 @@ if __name__=="__main__":
     window_length = 5 # seconds
     metrics = speechmetrics.load(['pesq'], window_length)
     for aug, sevs in AUGMENTATIONS.items():
-        for sev in range(1, len(sevs[1])):
+        for sev in range(1, len(sevs)):
             models = es_models if args.subset == 'spanish' else en_models
             if aug == 'universal_adv':
                 for model in models:

@@ -549,7 +549,7 @@ VC_VCTK_ACCENTS = [[], ['English', 'Scottish', 'NorthernIrish', 'Irish', 'Indian
                         'American', 'Canadian', 'SouthAfrican', 'Australian',
                         'NewZealand', 'British']]
 
-AUGMENTATIONS = {
+AUGMENTATIONS_2_FN_SEV = {
     # 'unoise': (UniformNoise, NOISE_SNRS),
     'gnoise': (GaussianNoise, NOISE_SNRS),
     'env_noise': (EnvNoise, NOISE_SNRS),
@@ -586,7 +586,7 @@ AUGMENTATIONS = {
     'universal_adv': (UniversalAdversarialPerturbation, ADV_SNRS),
 }
 
-PERT_ROB_AUGMENTATIONS = {
+PERT_ROB_AUGMENTATIONS_2_FN_SEV = {
     'gnoise': (GaussianNoise, NOISE_SNRS[1:2]),
     'env_noise_esc50': (EnvNoiseESC50, NOISE_SNRS[1:2]),
 }

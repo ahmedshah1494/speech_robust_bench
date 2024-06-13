@@ -16,7 +16,7 @@ import soundfile as sf
 from requests import session
 from tqdm import tqdm
 from datasets import load_dataset
-from corruptions import AUGMENTATIONS
+from corruptions_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS
 
 SAMPLING_RATE = 16000
 INPUT_LENGTH = 9.01
@@ -175,7 +175,7 @@ if __name__=="__main__":
 
     if args.split == 'all':
         for aug, sevs in AUGMENTATIONS.items():
-            for sev in range(1, len(sevs[1])):
+            for sev in range(1, len(sevs)):
                 print(args.dataset, aug, sev)
                 args.split = f'{aug}.{sev}'
                 main(args)

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from create_transformed_datasets import AUGMENTATIONS, UNIV_ADV_DELTAS
+from create_transformed_datasets import AUGMENTATIONS_2_FN_SEV, UNIV_ADV_DELTAS
 import os 
 from datasets import load_dataset
 
@@ -10,7 +10,7 @@ parser.add_argument('--split', default='test.clean')
 parser.add_argument('--hf_repo', required=True, help='HuggingFace repo to push the transformed dataset to.')
 args = parser.parse_args()
 
-for aug in AUGMENTATIONS.keys():
+for aug in AUGMENTATIONS_2_FN_SEV.keys():
     for sev in range(1, 4):
         cmd = f'python create_transformed_datasets.py --dataset librispeech_asr --augmentation {aug}:{sev} --dataset {args.dataset} --split {args.split}'
         if args.subset is not None:

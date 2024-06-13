@@ -43,11 +43,11 @@ def load_augmentation(aug, sev, universal_delta_path=None):
         augs = aug.split('+')
         augfns = []
         for a in augs:
-            fn, sev_args = AUGMENTATIONS[a]
+            fn, sev_args = AUGMENTATIONS_2_FN_SEV[a]
             augfns.append(fn(sev_args[min(sev, len(sev_args)-1)]))
         transform = Compose(augfns)
-    elif aug in AUGMENTATIONS:
-        fn, sev_args = AUGMENTATIONS[aug]
+    elif aug in AUGMENTATIONS_2_FN_SEV:
+        fn, sev_args = AUGMENTATIONS_2_FN_SEV[aug]
         if issubclass(fn, UniversalAdversarialPerturbation):
             transform = fn(sev_args[sev], universal_delta_path)
         else:    
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--hf_repo', required=True, help='HuggingFace repo to push the transformed dataset to.')
     parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
     parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
-    parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruptions.AUGMENTATIONS, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
+    parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruptions.AUGMENTATIONS_2_FN_SEV, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
     parser.add_argument('--universal_delta_path', type=str, help='Path to the universal adversarial perturbation. default: None')
     parser.add_argument('--run_perturb_robustness_eval', action='store_true', help='Run prediction stability analysis. default: False')
     parser.add_argument('--n_perturb_per_sample', type=int, default=30, help='Number of perturbations to generate per sample for stability analysis. default: 30')
