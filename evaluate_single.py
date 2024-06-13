@@ -6,6 +6,7 @@ import string
 from multiprocessing import cpu_count
 import torch
 from create_transformed_datasets import load_augmentation, transform_dataset, parse_augmentation
+from models import create_model_pipeline
 
 N_CPUS = cpu_count()
 N_GPUS = torch.cuda.device_count()
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
     parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruptions.AUGMENTATIONS, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
+    parser.add_argument('--augmentation', type=str, help='Augmentation to apply to the dataset. Should be of the form <aug>:<sev>, where <aug> is a key in corruption_info.AUGMENTATIONS_2_SEV, and <sev> is the severity in range 1-4 (except for voice_conversion_vctk for which it should be 1). default: None')
     parser.add_argument('--universal_delta_path', type=str, help='Path to the universal adversarial perturbation. default: None')
     parser.add_argument('--language', default='english', help='Language of the dataset. This is needs to be correctly specified for multi-lingual models. default: english')
     parser.add_argument('--output_dir', default='outputs', help='Output directory for the results. default: outputs')
@@ -60,7 +61,6 @@ if __name__ == '__main__':
             i += 1
             ofp = f'{odir}/{ofn}_{i}.tsv'
     from datasets import load_dataset, Audio, concatenate_datasets
-    from transformers.pipelines.pt_utils import KeyDataset
     import evaluate
     import numpy as np
     import pandas as pd
@@ -103,135 +103,11 @@ if __name__ == '__main__':
     wer_metric = evaluate.load("wer")
     cer_metric = evaluate.load("cer")
 
-    if args.model_name == 'deepspeech':
-        from deepspeech_pytorch.model import DeepSpeech
-        from deepspeech_pytorch.loader.data_loader import ChunkSpectrogramParser
-        from deepspeech_pytorch.decoder import GreedyDecoder
-
-        model = DeepSpeech.load_from_checkpoint(f'{os.environ["SRB_ROOT"]}/deepspeech_ckps/librispeech_pretrained_v3.ckpt')
-        parser = ChunkSpectrogramParser(audio_conf=model.spect_cfg)
-        def extract_features(x):
-            waveform = x['audio']['array']
-            spec = list(parser.parse_audio(waveform))[0]
-            x['spec'] = spec
-            x['lengths'] = spec.shape[1]
-            return x
-        dataset = dataset.map(extract_features, batched=False, num_proc=N_CPUS//4)
-        
-        def collate_fn(batch):
-            specs = [torch.FloatTensor(batch[i]['spec']).transpose(0,1) for i in range(len(batch))]
-            lengths = torch.LongTensor([(batch[i]['lengths']) for i in range(len(batch))])
-            specs = torch.nn.utils.rnn.pad_sequence(specs, batch_first=True).unsqueeze(1).transpose(2,3)
-            return {'spec': specs, 'lengths': lengths}
-        
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=N_CPUS//4, shuffle=False)
-        decoder = GreedyDecoder(model.labels)
-        def transcribe(dataloader):
-            for batch in dataloader:
-                length_order = torch.argsort(batch['lengths'], descending=True)
-                reverse_length_order = torch.argsort(length_order)
-                batch['spec'] = batch['spec'][length_order]
-                batch['lengths'] = batch['lengths'][length_order]
-                out, lens, _ = model(batch['spec'].cuda(), batch['lengths'].cuda())                
-                decoded_output, decoded_offsets = decoder.decode(out, lens)
-                for i in reverse_length_order:
-                    yield {'text': decoded_output[i][0]}
-        pipe = transcribe(dataloader)
-    elif args.model_name == 'rnnt':
-        import torchaudio
-        from torchaudio.pipelines import EMFORMER_RNNT_BASE_LIBRISPEECH
-
-        feature_extractor = EMFORMER_RNNT_BASE_LIBRISPEECH.get_feature_extractor()
-        decoder = EMFORMER_RNNT_BASE_LIBRISPEECH.get_decoder().cuda()
-        token_processor = EMFORMER_RNNT_BASE_LIBRISPEECH.get_token_processor()
-
-        def extract_features(x):
-            waveform = torch.FloatTensor(x['audio']['array'])
-            spec, length = feature_extractor(waveform)
-            x['spec'] = spec
-            x['lengths'] = length[0]
-            return x
-        dataset = dataset.map(extract_features, batched=False, num_proc=4)
-
-        def collate_fn(batch):
-            specs = [torch.FloatTensor(batch[i]['spec']) for i in range(len(batch))]
-            lengths = torch.LongTensor([(batch[i]['lengths']) for i in range(len(batch))])
-            specs = torch.nn.utils.rnn.pad_sequence(specs, batch_first=True)
-            return {'spec': specs, 'lengths': lengths}      
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, num_workers=4, shuffle=False)
-        
-        def transcribe(dataloader):
-            for batch in dataloader:
-                with torch.no_grad():
-                    for feature, length in zip(batch['spec'].cuda(), batch['lengths'].cuda()):
-                        hypotheses = decoder(feature.unsqueeze(0), length.unsqueeze(0), 1)
-                        text = token_processor(hypotheses[0][0])
-                        yield {'text': text}
-        pipe = transcribe(dataloader)
-    elif args.model_name.startswith('nvidia/canary'):
-        from nemo.collections.asr.models import EncDecMultiTaskModel
-        from scipy.io import wavfile
-        model = EncDecMultiTaskModel.from_pretrained('nvidia/canary-1b')
-        decode_cfg = model.cfg.decoding
-        decode_cfg.beam.beam_size = 1
-        model.change_decoding_strategy(decode_cfg)
-        # if aug == 'universal_adv':
-        #     print(f'Adversarial attacks against {args.model_name} are not supported.')
-        # else:
-        import tempfile, json
-        long2short_lang = {
-            'English': 'en',
-            'Spanish': 'es'
-        }
-        with tempfile.NamedTemporaryFile(suffix='.json', mode='w') as tmp:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                print(f'writing creating manifest in {tmp.name}...')
-                for i, item in tqdm(enumerate(dataset)):
-                    tmpaudiofile = os.path.join(tmpdir, f"{item['id']}.wav")
-                    wavfile.write(tmpaudiofile, 16000, item['audio']['array'])
-                    r = {
-                            "audio_filepath": tmpaudiofile,  # path to the audio file
-                            "duration": item['audio']['array'].shape[-1],  # duration of the audio, can be set to `None` if using NeMo main branch
-                            "taskname": "asr",  # use "s2t_translation" for speech-to-text translation with r1.23, or "ast" if using the NeMo main branch
-                            "source_lang": long2short_lang[args.language],  # language of the audio input, set `source_lang`==`target_lang` for ASR, choices=['en','de','es','fr']
-                            "target_lang": long2short_lang[args.language],  # language of the text output, choices=['en','de','es','fr']
-                            "pnc": "yes",  # whether to have PnC output, choices=['yes', 'no']
-                            "answer": "na", 
-                        }
-                    tmp.write(json.dumps(r)+'\n')
-                    tmp.flush()
-                transcripts = model.transcribe(paths2audio_files=tmp.name, batch_size=args.batch_size)
-            # def pipe():
-            #     for t in transcripts:
-            #         yield {'text': t}
-            pipe = [{'text':t} for t in transcripts]
+    if args.model_parallelism: 
+        kwargs = {'device_map': 'auto'}
     else:
-        if args.model_parallelism: 
-            kwargs = {'device_map': 'auto'}
-        else:
-            kwargs = {'device': 'cuda:0'}
-        model = args.model_name
-        gen_kwargs = {}
-        if ('whisper' in args.model_name) and (args.language != 'English'):
-            from transformers import WhisperProcessor
-            processor = WhisperProcessor.from_pretrained(args.model_name)
-            gen_kwargs = {'forced_decoder_ids': processor.get_decoder_prompt_ids(language=args.language.lower(), task="transcribe")}
-            print(gen_kwargs)
-        if ('mms' in args.model_name) and (args.language != 'English'):
-            from transformers import Wav2Vec2ForCTC, AutoProcessor
-            processor = AutoProcessor.from_pretrained(args.model_name, torch_dtype=torch.float16)
-            model = Wav2Vec2ForCTC.from_pretrained(args.model_name, torch_dtype=torch.float16)
-            from iso639 import Lang
-            processor.tokenizer.set_target_lang(Lang(args.language).pt2t)
-            kwargs['tokenizer'] = processor.tokenizer
-            kwargs['feature_extractor'] = args.model_name
-            model.load_adapter(args.language)
-            model = model.to(torch.float16)
-        print(kwargs)
-        print(model)
-        from transformers import pipeline
-        pipe = pipeline("automatic-speech-recognition", model=model, batch_size=args.batch_size, torch_dtype=torch.float16, **kwargs, generate_kwargs=gen_kwargs)
-        pipe = pipe(KeyDataset(dataset, "audio"))
+        kwargs = {'device': 'cuda:0'}
+    pipe = create_model_pipeline(args.model_name, dataset, batch_size=args.batch_size, language=args.language, **kwargs)
     
     output_rows = []
     t = tqdm(zip(pipe, dataset))
