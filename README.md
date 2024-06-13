@@ -10,6 +10,7 @@ We have made perturbed versions of the Librispeech test-clean, Multi-lingual Lib
 In our experiments we used `Python 3.10`, `PyTorch 2.2.0`, `transformers 4.34.0`.
 ```
 conda create -n speech-robust-bench python=3.10
+git submodule update --init --recursive
 [OPTIONAL -- not needed for eval] pip install TTS==0.22.0
 pip install -r requirements.txt
 cd robust_speech
