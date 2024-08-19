@@ -180,6 +180,7 @@ python create_transformed_dataset.py --augmentation gnoise:1 --dataset=librispee
 ```
 
 ## Extending the Benchmark
+### Adding Perturbations
 More perturbations can be added to the benchmark by adding their implementation to `corruptions.py`. The perturbations should ideally subclass `torch.nn.Module` and the forward function should take the audio recording as a tensor and output the perturbed recording, again, as a tensor. Below is an example of a perturbation that adds white noise to the audio.
 ```
 class GaussianNoise(torch.nn.Module):
@@ -204,6 +205,10 @@ An entry for the perturbation should be added to the `AUGMENTATIONS_2_FN_SEV` di
 AUGMENTATIONS_2_FN_SEV['gnoise'] = (GaussianNoise, [40, 30, 20, 10, 0])
 ```
 Note, that the parameter here is SNR in dB. The severity levels should be in increasing order of severity. The perturbation can then be used by passing the key to the `--augmentation` argument of the evaluation scripts (`evaluate_single.py` or `run_speech_robust_bench.py`).
+
+### Adding Metrics
+By default the evaluation scripts compute the Word Error Rate (WER) and Character Error Rate (CER) for the models, however, the scripts store the predicted and reference transcripts in the output files. One can use these transcripts to compute other metrics as needed.
+```
 
 ## Citation
 If you use this code in your research, please cite the following paper:
