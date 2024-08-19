@@ -42,7 +42,7 @@ To evaluate the *utility* of the models we will run the following script
 ```
 python run_speech_robust_bench.py
 ```
-This script will call `evaluate_single.py` for each model in `en_models` (`run_speech_robust_bench.py` line 19), perturbation type and severity. `en_models` has been populated with all the models used in the paper. You may extend this list with other models from Huggingface hub. By default the results will be saved in `./outputs/{model_name}/{perturbation type}-{severity}.csv`. Run `python run_speech_robust_bench.py --help` for more information on the available options.
+This script will call `evaluate_single.py` for each model in `en_models` (`run_speech_robust_bench.py` line 19), perturbation type and severity. `en_models` has been populated with all the models used in the paper. You may extend this list with other models from Huggingface hub. By default the results (file_id, reference transcript, predicted transcript, WER and CER) will be saved in `./outputs/{model_name}/{perturbation type}-{severity}.csv`. Run `python run_speech_robust_bench.py --help` for more information on the available options.
 
 The same script can be used to also evaluate the stability of the models by adding the `--run_perturb_robustness_eval` flag. 
 ```
@@ -178,6 +178,32 @@ You can perturb your own dataset using the `create_transformed_dataset.py` scrip
 ```
 python create_transformed_dataset.py --augmentation gnoise:1 --dataset=librispeech_asr --split test.clean --srb_hf_repo <user>/<repo_name>
 ```
+
+## Extending the Benchmark
+More perturbations can be added to the benchmark by adding their implementation to `corruptions.py`. The perturbations should ideally subclass `torch.nn.Module` and the forward function should take the audio recording as a tensor and output the perturbed recording, again, as a tensor. Below is an example of a perturbation that adds white noise to the audio.
+```
+class GaussianNoise(torch.nn.Module):
+    def __init__(self, snr) -> None:
+        super().__init__()
+        self.snr = snr
+    
+    def __repr__(self):
+        return f"GaussianNoise({self.snr} dB)"
+    
+    def forward(self, x, *args, **kwargs):
+        if not isinstance(x, torch.Tensor):
+            x = torch.FloatTensor(x)
+        rng = torch.Generator(x.device)
+        d = torch.empty_like(x).normal_(0, 1, generator=rng)
+        snr = torch.zeros(x.shape[:-1], device=x.device) + self.snr
+        return F.add_noise(x, d, snr)
+```
+
+An entry for the perturbation should be added to the `AUGMENTATIONS_2_FN_SEV` dictionary in `corruptions.py`. The key should be a string that uniquely identifies the perturbation and the value should be a tuple of the perturbation class and a list of parameters corresponding to different severity levels. The parameter value will be passed as the first positional argument to the perturbation class. Below is an example of adding the GaussianNoise perturbation to the dictionary.
+```
+AUGMENTATIONS_2_FN_SEV['gnoise'] = (GaussianNoise, [40, 30, 20, 10, 0])
+```
+Note, that the parameter here is SNR in dB. The severity levels should be in increasing order of severity. The perturbation can then be used by passing the key to the `--augmentation` argument of the evaluation scripts (`evaluate_single.py` or `run_speech_robust_bench.py`).
 
 ## Citation
 If you use this code in your research, please cite the following paper:
