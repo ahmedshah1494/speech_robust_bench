@@ -50,11 +50,11 @@ class EnvNoise(torch.nn.Module):
                 3774329, 1412644, 1519183, 6969162, 7885564, 3707167, 5816443,
                 9477077, 9822365, 7482569, 7792808, 9120101, 5467473]
     
-    def __init__(self, snr, noise_dir=f'{os.environ["SRB_ROOT"]}/MS-SNSD/noise_test') -> None:
+    def __init__(self, snr, noise_dir=None) -> None:
         super().__init__()
         self.snr = snr
-        self.noise_dir = noise_dir
-        self.noise_files = [x for x in os.listdir(noise_dir) if x.endswith('.wav')]
+        self.noise_dir = noise_dir if noise_dir is not None else f'{os.environ["SRB_ROOT"]}/MS-SNSD/noise_test'
+        self.noise_files = [x for x in os.listdir(self.noise_dir) if x.endswith('.wav')]
         # seed = self.seeds[int(snr % len(self.seeds))]
     
     def __repr__(self):
@@ -121,7 +121,7 @@ class EnvNoiseWHAM(EnvNoise):
                     self.noise_files.append(os.path.join(root, name))
     
 class EnvNoiseDeterministic(EnvNoise):
-    def __init__(self, snr, noise_dir=f'{os.environ["SRB_ROOT"]}/MS-SNSD/noise_test') -> None:
+    def __init__(self, snr, noise_dir=None) -> None:
         super().__init__(snr, noise_dir)
         seed = time.time_ns()+os.getpid()
         rng = np.random.default_rng(seed)
@@ -152,13 +152,13 @@ class UniversalAdversarialPerturbation(torch.nn.Module):
 
 class RIR(torch.nn.Module):
     seed = 9983137
-    def __init__(self, sev, rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs', rir_t60_file='rir_t60.csv') -> None:
+    def __init__(self, sev, rir_dir=None, rir_t60_file='rir_t60.csv') -> None:
         super().__init__()
         assert sev <= 4
-        self.rir_dir = rir_dir
+        self.rir_dir = rir_dir if rir_dir is not None else f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs'
         # self.rir_files = [x for x in os.listdir(rir_dir) if x.endswith('.wav')]
         rir_files = []
-        for root, dirs, files in os.walk(rir_dir):
+        for root, dirs, files in os.walk(self.rir_dir):
             for name in files:
                 if name.endswith('wav'):
                     rir_files.append(os.path.join(root, name))
@@ -195,13 +195,13 @@ class RIR(torch.nn.Module):
 
 class RealRIR(torch.nn.Module):
     seed = 9983137
-    def __init__(self, sev, rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/real_rirs', rir_t60_file='rir_snr.csv') -> None:
+    def __init__(self, sev, rir_dir=None, rir_t60_file='rir_snr.csv') -> None:
         super().__init__()
         assert sev <= 4
-        self.rir_dir = rir_dir
+        self.rir_dir = rir_dir if rir_dir is not None else f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/real_rirs'
         # self.rir_files = [x for x in os.listdir(rir_dir) if x.endswith('.wav')]
         rir_files = []
-        for root, dirs, files in os.walk(rir_dir):
+        for root, dirs, files in os.walk(self.rir_dir):
             for name in files:
                 if name.endswith('wav'):
                     rir_files.append(os.path.join(root, name))
@@ -250,11 +250,11 @@ class RealRIR(torch.nn.Module):
         return x_
 
 class RIR_RoomSize(torch.nn.Module):
-    def __init__(self, room_type, rir_dir=f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs') -> None:
+    def __init__(self, room_type, rir_dir=None) -> None:
         super().__init__()
-        self.rir_dir = rir_dir
+        self.rir_dir = rir_dir if rir_dir is not None else f'{os.environ["SRB_ROOT"]}/RIRS_NOISES/simulated_rirs'
         rir_files = []
-        for root, dirs, files in os.walk(rir_dir):
+        for root, dirs, files in os.walk(self.rir_dir):
             for name in files:
                 if name.endswith('wav'):
                     if room_type in root:
@@ -359,10 +359,10 @@ class VoiceConversion(AbsVoiceConversion):
         return speech
 
 class VoiceConversionVCTK(AbsVoiceConversion):
-    def __init__(self, accents, lang='en', vctk_dir=f'{os.environ["SRB_ROOT"]}/VCTK') -> None:
+    def __init__(self, accents, lang='en', vctk_dir=None) -> None:
         super().__init__()
         self.accents = accents
-        self.vctk_dir = vctk_dir
+        self.vctk_dir = vctk_dir if vctk_dir is not None else f'{os.environ["SRB_ROOT"]}/VCTK'
         self.lang = lang
         meta = pd.read_csv(os.path.join(self.vctk_dir, 'speaker-info.txt'), sep=r'\s+', usecols=[0,1,2,3])
         accent_spks = meta[meta['ACCENTS'].isin(accents)]['ID'].values
