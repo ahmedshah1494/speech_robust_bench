@@ -208,7 +208,6 @@ Note, that the parameter here is SNR in dB. The severity levels should be in inc
 
 ### Adding Metrics
 By default the evaluation scripts compute the Word Error Rate (WER) and Character Error Rate (CER) for the models, however, the scripts store the predicted and reference transcripts in the output files. One can use these transcripts to compute other metrics as needed.
-```
 
 ## Citation
 If you use this code in your research, please cite the following paper:
