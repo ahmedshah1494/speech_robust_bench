@@ -1,5 +1,6 @@
 # Speech Robust Bench
-This repository contains the code for the paper "Speech Robust Bench: A Robustness Benchmark For Speech Recognition" [\[arXiv\]](https://arxiv.org/abs/2403.07937). 
+This repository contains the code for the paper "Speech Robust Bench: A Robustness Benchmark For Speech Recognition" 
+<!-- [\[arXiv\]](https://arxiv.org/abs/2403.07937).  -->
 Speech Robust Bench (SRB), a comprehensive benchmark for evaluating the robustness of ASR models to diverse corruptions. SRB is composed of 114 input perturbations which are intended to simulate various corruptions that ASR models may encounter in the physical and digital world. The taxonomy of perturbations is illustrated in the figure below, and further details can be found in Section 3.2 and Appendix A of the paper (linked above). 
 
 <img src="taxonomy.png" alt="perturbation taxonomy" width="500"/>
