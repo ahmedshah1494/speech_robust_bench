@@ -1,7 +1,7 @@
 import speechmetrics
 import argparse
 from datasets import load_dataset, Audio
-from corruptions_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS
+from corruption_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS
 import pandas as pd
 import os
 from tqdm import tqdm
