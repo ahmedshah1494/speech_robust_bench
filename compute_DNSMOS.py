@@ -16,7 +16,7 @@ import soundfile as sf
 from requests import session
 from tqdm import tqdm
 from datasets import load_dataset
-from corruptions_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS
+from corruption_info import AUGMENTATIONS_2_SEV as AUGMENTATIONS
 
 SAMPLING_RATE = 16000
 INPUT_LENGTH = 9.01
@@ -61,14 +61,17 @@ class ComputeScore:
         return sig_poly, bak_poly, ovr_poly
 
     def __call__(self, inp, sampling_rate, is_personalized_MOS):
-        # aud, input_fs = sf.read(fpath)
-        input_fs = inp['audio']['sampling_rate']
-        aud = inp['audio']['array']
-        fpath = inp['id']
+        if isinstance(inp, str):
+            aud, input_fs = sf.read(inp)
+            fpath = inp
+        elif isinstance(inp, dict):
+            input_fs = inp['audio']['sampling_rate']
+            aud = inp['audio']['array']
+            fpath = inp['id']
 
         fs = sampling_rate
         if input_fs != fs:
-            audio = librosa.resample(aud, input_fs, fs)
+            audio = librosa.resample(aud, orig_sr=input_fs, target_sr=fs)
         else:
             audio = aud
         actual_audio_len = len(audio)
