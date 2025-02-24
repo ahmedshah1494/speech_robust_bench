@@ -38,6 +38,7 @@ AUGMENTATIONS_2_SEV = {
     'rir':  [0,1,2,3,4],
     'real_rir':  [0,1,2,3,4],
     'voice_conversion_vctk':  VC_VCTK_ACCENTS,
+    'voice_conversion_bark': [None, None],
     'resample':  RESAMPLING_FACTORS,
     'gain':  GAIN_FACTORS,
     'echo':  ECHO_DELAYS,
@@ -52,15 +53,16 @@ AUGMENTATIONS_2_SEV = {
     'treble':  TREBLE_GAIN,
     'bass':  BASS_GAIN,
     'chorus':  CHORUS_DELAY,
-    'accent': [None, None],
-    'itw_nf': [None, None],
-    'itw_ff': [None, None],
-    'itw_nf_ami': [None, None],
-    'itw_ff_ami': [None, None],
     'universal_adv': ADV_SNRS,
 }
 
 PERT_ROB_AUGMENTATIONS_2_SEV = {
-    'gnoise': NOISE_SNRS[1:2],
-    'env_noise_esc50': NOISE_SNRS[1:2]
+    'gnoise': NOISE_SNRS,
+    'env_noise':  NOISE_SNRS,
+    'env_noise_esc50':  NOISE_SNRS,
+    'env_noise_musan':  NOISE_SNRS,
+    'env_noise_wham':  NOISE_SNRS,
+    'music':  NOISE_SNRS,
+    'rir':  [0,1,2,3,4],
+    'real_rir':  [0,1,2,3,4],
 }

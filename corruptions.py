@@ -396,8 +396,45 @@ class VoiceConversionVCTK(AbsVoiceConversion):
         spk_utt_path = self._get_spk_utt()
         print(spk_utt_path)
         wav = self.tts.tts(text=text, speaker_wav=spk_utt_path, language=self.lang)
-        return wav       
+        return wav
     
+class BarkTTSSpa(AbsVoiceConversion):
+    def __init__(self, *args):
+        super().__init__()
+        self.voices = [f"v2/es_speaker_{i}" for i in [0,1,4,6,7]]
+        self.rng = np.random.default_rng(99999)
+    
+    def _maybe_init_tts(self):
+        if not hasattr(self, 'model'):
+            from transformers import AutoProcessor, BarkModel
+
+            self.processor = AutoProcessor.from_pretrained("suno/bark")
+            self.device_id = os.getpid() % torch.cuda.device_count()
+            self.model = BarkModel.from_pretrained("suno/bark").to(f'cuda:{self.device_id}')
+
+    def forward(self, speech, text, *args, **kwargs):
+        self._maybe_init_tts()
+        voice_preset = self.rng.choice(self.voices)
+        inputs = self.processor(text, voice_preset=voice_preset, return_tensors="pt").to(f'cuda:{self.device_id}')
+
+        audio_array = self.model.generate(**inputs, do_sample=True)
+        audio_array = audio_array.cpu().numpy().squeeze()
+        return audio_array
+    
+class TTSSpa(AbsVoiceConversion):
+    def __init__(self):
+        super().__init__()
+        from transformers import VitsModel, AutoTokenizer
+
+        self.model = VitsModel.from_pretrained("facebook/mms-tts-spa")
+        self.tokenizer = AutoTokenizer.from_pretrained("facebook/mms-tts-spa")
+
+    def forward(self, speech, text, *args, **kwargs):
+        inputs = self.tokenizer(text, return_tensors="pt")
+        with torch.no_grad():
+            output = self.model(**inputs).waveform
+        return output.cpu().detach().numpy()
+
 class Gain(torchaudio.transforms.Vol):
     def __init__(self, gain) -> None:
         super().__init__(gain)
@@ -564,6 +601,7 @@ AUGMENTATIONS_2_FN_SEV = {
     'real_rir': (RealRIR, [0,1,2,3,4]),
     # 'voice_conversion': (VoiceConversion, VC_ACCENTS),
     'voice_conversion_vctk': (VoiceConversionVCTK, VC_VCTK_ACCENTS),
+    'voice_conversion_bark': (BarkTTSSpa, [None, None]),
     'resample': (ResamplingNoise, RESAMPLING_FACTORS),
     'gain': (Gain, GAIN_FACTORS),
     'echo': (Echo, ECHO_DELAYS),
