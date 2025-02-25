@@ -14,7 +14,9 @@ def create_model_pipeline(dataset, batch_size=1, language='English', **kwargs):
     import tempfile, json
     long2short_lang = {
         'English': 'en',
-        'Spanish': 'es'
+        'Spanish': 'es',
+        'German': 'de',
+        'French': 'fr'
     }
     with tempfile.NamedTemporaryFile(suffix='.json', mode='w') as tmp:
         with tempfile.TemporaryDirectory() as tmpdir:
