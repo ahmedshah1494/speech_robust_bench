@@ -20,7 +20,15 @@ model_to_params = {
     'wav2vec2-base-10k-voxpopuli-ft-es': 94371712,
     'wav2vec2-large-xlsr-53-spanish': 315438720,
     'canary-1b': 1e9,
-    'speecht5_asr': 154588800
+    'speecht5_asr': 154588800,
+    'parakeet-rnnt-0.6b': 6e8,
+    'parakeet-ctc-0.6b': 6e8,
+    'parakeet-ctc-1.1b': 1.1e9,
+    'parakeet-rnnt-1.1b': 1.1e9,
+    'asr-crdnn-transformerlm-librispeech': 230.8e6,
+    'asr-streaming-conformer-librispeech': None,
+    'asr-conformer-transformerlm-librispeech': None,
+
 }
 model_to_traindata = {
     'whisper-large-v2': 680000,
@@ -44,7 +52,14 @@ model_to_traindata = {
     'wav2vec2-base-10k-voxpopuli-ft-es': 10116,
     'wav2vec2-large-xlsr-53-spanish': 54350,
     'canary-1b':85000,
-    'speecht5_asr': 960
+    'speecht5_asr': 960,
+    'parakeet-rnnt-0.6b': 64_000,
+    'parakeet-ctc-0.6b': 64_000,
+    'parakeet-ctc-1.1b': 64_000,
+    'parakeet-rnnt-1.1b': 64_000,
+    'asr-crdnn-transformerlm-librispeech': 960,
+    'asr-streaming-conformer-librispeech': 960,
+    'asr-conformer-transformerlm-librispeech': 960,
 }
 model_to_year = {
     'whisper-large-v2': 2023,
@@ -68,7 +83,14 @@ model_to_year = {
     'wav2vec2-base-10k-voxpopuli-ft-es': 2021,
     'wav2vec2-large-xlsr-53-spanish': 2020,
     'canary-1b':2024,
-    'speecht5_asr': 2022
+    'speecht5_asr': 2022,
+    'parakeet-rnnt-0.6b': 2024,
+    'parakeet-ctc-0.6b': 2024,
+    'parakeet-ctc-1.1b': 2024,
+    'parakeet-rnnt-1.1b': 2024,
+    'asr-crdnn-transformerlm-librispeech': 2023,
+    'asr-streaming-conformer-librispeech': 2023,
+    'asr-conformer-transformerlm-librispeech': 2023,
 }
 model_to_abrv = {
     'whisper-large-v2': 'wsp-lg',
@@ -92,5 +114,43 @@ model_to_abrv = {
     'wav2vec2-base-10k-voxpopuli-ft-es': 'w2v2-bs-es',
     'wav2vec2-large-xlsr-53-spanish': 'w2v2-lg-es',
     'canary-1b': 'cnry-1b',
-    'speecht5_asr': 'spch-t5'
+    'speecht5_asr': 'spch-t5',
+    'parakeet-rnnt-0.6b': 'prkt-rnnt-0.6b',
+    'parakeet-ctc-0.6b': 'prkt-ctc-0.6b',
+    'parakeet-ctc-1.1b': 'prkt-ctc-1.1b',
+    'parakeet-rnnt-1.1b': 'prkt-rnnt-1.1b',
+    'asr-crdnn-transformerlm-librispeech': "sb_crdnn",
+    'asr-streaming-conformer-librispeech': "sb-cnfmr-rnnt",
+    'asr-conformer-transformerlm-librispeech': 'sb-cnfmr',
+}
+model_to_arch = {
+    'whisper-large-v2': 'seq2seq',
+    'whisper-tiny.en': 'seq2seq',
+    'whisper-tiny': 'seq2seq',
+    'whisper-small': 'seq2seq',
+    'whisper-base': 'seq2seq',
+    'whisper-medium': 'seq2seq',
+    'whisper-small.en': 'seq2seq',
+    'whisper-base.en': 'seq2seq',
+    'whisper-medium.en': 'seq2seq',
+    'wav2vec2-large-960h-lv60-self': "ctc",
+    'wav2vec2-large-960h': "ctc",
+    'wav2vec2-base-960h': "ctc",
+    'hubert-large-ls960-ft': "ctc",
+    'hubert-xlarge-ls960-ft': "ctc",
+    'wav2vec2-large-robust-ft-libri-960h': "ctc",
+    'wav2vec2-base-10k-voxpopuli-ft-es': "ctc",
+    'wav2vec2-large-xlsr-53-spanish': "ctc",
+    'deepspeech': "ctc",
+    'mms-1b-fl102': "ctc",
+    'emformer-rnnt': "rnnt",
+    'canary-1b':"seq2seq",
+    'speecht5_asr': "seq2seq",
+    'parakeet-rnnt-0.6b': "rnnt",
+    'parakeet-ctc-0.6b': "ctc",
+    'parakeet-ctc-1.1b': "ctc",
+    'parakeet-rnnt-1.1b': "rnnt",
+    'asr-crdnn-transformerlm-librispeech': "ctc",
+    'asr-streaming-conformer-librispeech': "rnnt",
+    'asr-conformer-transformerlm-librispeech': "seq2seq",
 }
