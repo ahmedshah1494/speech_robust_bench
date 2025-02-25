@@ -22,12 +22,12 @@ def is_complete(data_root, dataset, model, snr, attack_type, csv_name):
             return True
 
 en_models = [
-    ('openai/whisper-tiny.en', 'robust_speech/advattack_data_and_results/attacks/universal/whisper-tiny.en-10/1002/CKPT+2023-11-27+19-04-38+00/delta.ckpt'),
-    # ('deepspeech', 'robust_speech/advattack_data_and_results/attacks/universal/deepspeech-10/1002/CKPT+2023-11-27+17-27-39+00/delta.ckpt'),
-    ('facebook/wav2vec2-base-960h', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-base-960h-10/1002/CKPT+2023-11-27+15-58-14+00/delta.ckpt'),
-    ('facebook/wav2vec2-large-960h-lv60-self', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-large-960h-lv60-self-10/1002/CKPT+2023-11-27+16-06-02+00/delta.ckpt'),
-    ('facebook/hubert-large-ls960-ft', 'robust_speech/advattack_data_and_results/attacks/universal/hubert-large-ls960-ft-10/1002/CKPT+2023-11-27+15-56-27+00/delta.ckpt'),
-    ('facebook/wav2vec2-large-robust-ft-libri-960h', 'robust_speech/advattack_data_and_results/attacks/universal/wav2vec2-large-robust-ft-libri-960h-10/1002/CKPT+2023-11-27+16-40-39+00/delta.ckpt'),
+    ('openai/whisper-tiny.en', ''),
+    ('deepspeech', ''),
+    ('facebook/wav2vec2-base-960h', ''),
+    ('facebook/wav2vec2-large-960h-lv60-self', ''),
+    ('facebook/hubert-large-ls960-ft', ''),
+    ('facebook/wav2vec2-large-robust-ft-libri-960h', ''),
     ('facebook/wav2vec2-large-960h', ''),
     ('openai/whisper-tiny', ''),
     ('openai/whisper-small', ''),
@@ -35,9 +35,12 @@ en_models = [
     ('openai/whisper-medium', ''),
     ('microsoft/speecht5_asr', ''),
     ('facebook/hubert-xlarge-ls960-ft', ''),
-    ('openai/whisper-large-v2', 'robust_speech/advattack_data_and_results/attacks/universal/whisper-large-v2-10/1002/CKPT+2023-11-27+18-55-29+00/delta.ckpt'),
+    ('openai/whisper-large-v2', ''),
     ('nvidia/canary-1b', ''),
     ('facebook/mms-1b-fl102', ''),
+    ('nvidia/parakeet-ctc-1.1b', ''),
+    ('nvidia/parakeet-rnnt-1.1b', ''),
+    ('nvidia/parakeet-rnnt-0.6b', ''),
 ]
 
 es_models = [
@@ -74,8 +77,8 @@ def create_pgd_cmd(model, snr):
         cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/deepspeech.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
         if args.dataset == 'TEDLIUM':
             cmd += ' --tokenizer_file tokenizer_uncased'
-    elif model == 'nvidia/canary-1b':
-        cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/canary-1b.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
+    elif model.startswith('nvidia/'):
+        cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/{model.replace("nvidia/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
         if args.dataset == 'MLS-ES':
             cmd += ' --lang es'
     else:
@@ -93,8 +96,8 @@ def create_universal_cmd(model, snr):
         cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/deepspeech.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
         if args.dataset == 'TEDLIUM':
             cmd += ' --tokenizer_file tokenizer_uncased'
-    elif model == 'nvidia/canary-1b':
-        cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/canary-1b.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
+    elif model.startswith('nvidia/'):
+        cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/{model.replace("nvidia/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
         if args.dataset == 'MLS-ES':
             cmd += ' --lang es'
     else:
