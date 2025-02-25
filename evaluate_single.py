@@ -5,7 +5,7 @@ from copy import deepcopy
 import string
 from multiprocessing import cpu_count
 import torch
-from create_transformed_datasets import load_augmentation, transform_dataset, parse_augmentation
+from create_transformed_datasets import load_augmentation, transform_dataset, transform_dataset_for_ptest, parse_augmentation
 from models import create_model_pipeline
 
 N_CPUS = cpu_count()
@@ -32,15 +32,19 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', default='outputs', help='Output directory for the results. default: outputs')
     parser.add_argument('--model_parallelism', action='store_true', help='Use model parallelism for the model. default: False')
     parser.add_argument('--run_perturb_robustness_eval', action='store_true', help='Run prediction stability analysis. default: False')
-    parser.add_argument('--n_perturb_per_sample', type=int, default=30, help='Number of perturbations to generate per sample for stability analysis. default: 30')
-    parser.add_argument('--n_samples', type=int, default=500, help='Number of samples to use for stability analysis. default: 500')
+    parser.add_argument('--n_perturb_per_sample', type=int, default=5, help='Number of perturbations to generate per sample for stability analysis. default: 30')
+    parser.add_argument('--n_samples', type=int, default=100, help='Number of samples to use for stability analysis. default: 500')
     parser.add_argument('--overwrite_result_file', action='store_true', help='Overwrite the result file if it exists. default: False')
     parser.add_argument('--skip_if_result_exists', action='store_true', help='Skip the evaluation if the result file exists. default: False')
+    parser.add_argument('--force_retransform', action='store_true', help='If True, do not retrieve perturbed data from hf_repo. default: False')
+    parser.add_argument('--text_field', default='text', help='Field name for the text in the dataset. default: None')
     args = parser.parse_args()
 
     aug, sev = parse_augmentation(args)
 
     odir = f'{args.output_dir}/{args.model_name.split("/")[-1]}/{args.dataset.split("/")[-1]}'
+    if args.subset is not None:
+        odir += f':{args.subset}'
     os.makedirs(odir, exist_ok=True)
 
     if args.augmentation == 'universal_adv':
@@ -66,30 +70,39 @@ if __name__ == '__main__':
     import pandas as pd
     from corruptions import *
 
-    if (args.augmentation is None) or (aug == 'universal_adv'):
+    if (args.augmentation is None) or (aug == 'universal_adv') or args.force_retransform:
+        print(f'Loading dataset {args.dataset} {args.subset} {args.split}')
         dataset = load_dataset(args.dataset, args.subset, split=args.split)
         dataset = dataset.filter(lambda x: not x['id'].startswith('inter_segment_gap'))
         dataset = dataset.cast_column("audio", Audio(sampling_rate=16_000))
-        if aug == 'universal_adv':
+        if (aug == 'universal_adv') or args.force_retransform:
             transform = load_augmentation(aug, sev, args.universal_delta_path)
-            dataset = transform_dataset(dataset, transform)
+            if args.run_perturb_robustness_eval:
+                dataset = transform_dataset_for_ptest(dataset, transform, args.n_samples, args.n_perturb_per_sample)
+                print(len(dataset), dataset, transform)
+            else:
+                dataset = transform_dataset(dataset, transform)
 
         print(dataset)
-    elif aug == 'accent':
+    elif aug.startswith('accent'):
         if (args.language == 'English'):
             dataset = load_dataset(args.srb_hf_repo, 'accented_cv', split='test.clean')
+        elif (args.language == 'Spanish'):
+            dataset = load_dataset(args.srb_hf_repo, 'accented_cv_es', split='test')
+        elif (args.language == 'French'):
+            dataset = load_dataset(args.srb_hf_repo, 'accented_cv_fr', split='test')
         else:
             raise ValueError(f'Augmentation {aug} is not supported for language {args.language}')
     elif aug.startswith('itw'):
         if (args.language == 'English'):
             if aug == 'itw_nf':
-                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='nearfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_chime_nf', split='nearfield')
             elif aug == 'itw_ff':
-                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild', split='farfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_chime_ff', split='farfield')
             elif aug == 'itw_nf_ami':
-                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-AMI', split='nearfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_ami_nf', split='nearfield')
             elif aug == 'itw_ff_ami':
-                dataset = load_dataset(args.srb_hf_repo, 'in-the-wild-AMI', split='farfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_ami_ff', split='farfield')
             else:
                 raise ValueError(f'Augmentation {aug} is not supported. Must be one of itw-nf or itw-ff')
         else:
@@ -113,7 +126,7 @@ if __name__ == '__main__':
     t = tqdm(zip(pipe, dataset))
     for out, inp in t:
         hyp = out['text'].upper()
-        ref = inp['text'].upper()
+        ref = inp[args.text_field].upper()
         
         ref = normalize_transcript(ref)
         hyp = normalize_transcript(hyp)
