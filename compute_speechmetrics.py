@@ -176,7 +176,7 @@ if __name__=="__main__":
     parser.add_argument('--dataset', default="librispeech_asr")
     parser.add_argument('--subset', default=None)
     parser.add_argument('--split', default='test.clean')
-    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench')
+    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench_public', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench_public')
     parser.add_argument('--universal_adv_dir', default=None, help='Path to the directory containing universal adversarial perturbations')
     parser.add_argument('-o', '--output_dir', default='speechmetrics_csv/PESQ')
     

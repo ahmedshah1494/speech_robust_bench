@@ -116,7 +116,7 @@ parser.add_argument('--output_dir', default='outputs', help='Output directory fo
 parser.add_argument('--skip_if_result_exists', action='store_true', help='Skip evaluation if result file for this model, augmentation and severity exists.')
 parser.add_argument('--overwrite_result_file', action='store_true')
 parser.add_argument('--run_accent_eval', action='store_true')
-parser.add_argument('--run_itw_eval', action='store_true', help='evaluate on in-the-wild data from CHiME and AMI')
+parser.add_argument('--run_social_eval', action='store_true', help='evaluate on social data from CHiME and AMI')
 parser.add_argument('--run_universal_adv_eval', action='store_true')
 parser.add_argument('--run_universal_adv_eval_only', action='store_true')
 parser.add_argument('--universal_adv_delta_path', help='Directory containing the utterance agnoistic (universal) adversarial perturbations. The script will look for files named delta.ckpt <universal_adv_delta_path>/<model_name>. If multiple are found the full paths to the files will be lexically sorted and the last one will be selected.')
@@ -184,7 +184,7 @@ for model_data in models:
         Q.put(cmd)
     # continue
 
-    if args.run_itw_eval:
+    if args.run_social_eval:
         for aug in ['itw_nf', 'itw_ff', 'itw_nf_ami', 'itw_ff_ami']:
             cmd = create_cmd(model, delta_path, aug, 0)
             Q.put(cmd)

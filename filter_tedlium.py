@@ -2,7 +2,7 @@ from time import sleep
 from datasets import load_dataset, DownloadMode
 from requests.exceptions import HTTPError
 
-srb_hf_repo = 'mshah1/speech_robust_bench'
+srb_hf_repo = 'mshah1/speech_robust_bench_public'
 dataset = 'LIUM/tedlium'
 subset = 'release3'
 split = 'test'

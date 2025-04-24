@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--model_name', required=True, help='Model name or path compatible with HuggingFace Transformers library.')
     parser.add_argument('--dataset', default="librispeech_asr", help='Name for dataset to load from huggingface hub. Used to run eval on clean data and utterance agnostic (universal) adversarial perturbations. default: librispeech_asr.')
-    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench')
+    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench_public')
     parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
     parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
     parser.add_argument('--batch_size', type=int, default=128)
@@ -96,13 +96,13 @@ if __name__ == '__main__':
     elif aug.startswith('itw'):
         if (args.language == 'English'):
             if aug == 'itw_nf':
-                dataset = load_dataset(args.srb_hf_repo, 'social_chime_nf', split='nearfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_chime', split='nearfield')
             elif aug == 'itw_ff':
-                dataset = load_dataset(args.srb_hf_repo, 'social_chime_ff', split='farfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_chime', split='farfield')
             elif aug == 'itw_nf_ami':
-                dataset = load_dataset(args.srb_hf_repo, 'social_ami_nf', split='nearfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_ami', split='nearfield')
             elif aug == 'itw_ff_ami':
-                dataset = load_dataset(args.srb_hf_repo, 'social_ami_ff', split='farfield')
+                dataset = load_dataset(args.srb_hf_repo, 'social_ami', split='farfield')
             else:
                 raise ValueError(f'Augmentation {aug} is not supported. Must be one of itw-nf or itw-ff')
         else:
@@ -112,7 +112,6 @@ if __name__ == '__main__':
         if args.run_perturb_robustness_eval:
             subset = f'{subset}_pertEval_{args.n_samples}_{args.n_perturb_per_sample}'
         dataset = load_dataset(args.srb_hf_repo, f'{args.dataset.split("/")[-1]}-{subset}', split=f'{aug}.{sev}')
-
     wer_metric = evaluate.load("wer")
     cer_metric = evaluate.load("cer")
 
