@@ -210,6 +210,9 @@ Note, that the parameter here is SNR in dB. The severity levels should be in inc
 ### Adding Metrics
 By default the evaluation scripts compute the Word Error Rate (WER) and Character Error Rate (CER) for the models, however, the scripts store the predicted and reference transcripts in the output files. One can use these transcripts to compute other metrics as needed.
 
+### Adding Models
+New model-specific integration code goes in `models/`, dispatched by model-name prefix in `models/__init__.py` (see `models/canary.py` / `models/parakeet.py` for examples of models needing custom, non-generic handling). Some newer models require a `transformers` version newer than this repo's pinned `requirements.txt` — see [`docs/new_asr_models_setup.md`](docs/new_asr_models_setup.md) for how `granite-speech`, `Qwen3-ASR`, and `cohere-transcribe` were integrated using a second, isolated virtualenv rather than upgrading the main one.
+
 ## Citation
 If you use this code in your research, please cite the following paper:
 ```

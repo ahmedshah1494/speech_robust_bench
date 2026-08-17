@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--model_name', required=True, help='Model name or path compatible with HuggingFace Transformers library.')
     parser.add_argument('--dataset', default="librispeech_asr", help='Name for dataset to load from huggingface hub. Used to run eval on clean data and utterance agnostic (universal) adversarial perturbations. default: librispeech_asr.')
-    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench_public')
+    parser.add_argument('--srb_hf_repo', default='mshah1/speech_robust_bench_public', help='Huggingface repo name for the preprocessed speech robustness benchmark. default: mshah1/speech_robust_bench_public')
     parser.add_argument('--subset', default=None, help='Subset of the dataset to use. default: None')
     parser.add_argument('--split', default='test.clean', help='Split of the dataset to use. default: test.clean')
     parser.add_argument('--batch_size', type=int, default=128)

@@ -56,6 +56,9 @@ en_models = [
     ('nvidia/parakeet-rnnt-0.6b', ''),
     ('nvidia/parakeet-rnnt-1.1b', ''),
     ('nvidia/parakeet-ctc-0.6b', ''),
+    ('ibm-granite/granite-speech-4.1-2b', ''),
+    ('Qwen/Qwen3-ASR-1.7B-hf', ''),
+    ('CohereLabs/cohere-transcribe-03-2026', ''),
 ]
 
 es_models = [

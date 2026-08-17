@@ -23,6 +23,15 @@ def create_model_pipeline(model, dataset, batch_size=1, language='English', **kw
     elif model.startswith('Qwen/Qwen2-Audio-7B'):
         from models import qwen_audio
         return qwen_audio.create_model_pipeline(dataset, model, batch_size=batch_size, language=language, **kwargs)
+    elif model.startswith('ibm-granite/granite-speech'):
+        from models import granite_speech
+        return granite_speech.create_model_pipeline(dataset, model, batch_size=batch_size, language=language, **kwargs)
+    elif model.startswith('Qwen/Qwen3-ASR'):
+        from models import qwen3_asr
+        return qwen3_asr.create_model_pipeline(dataset, model, batch_size=batch_size, language=language, **kwargs)
+    elif model.startswith('CohereLabs/cohere-transcribe'):
+        from models import cohere_transcribe
+        return cohere_transcribe.create_model_pipeline(dataset, model, batch_size=batch_size, language=language, **kwargs)
     else:
         from models import hf
         return hf.create_model_pipeline(dataset, model, batch_size=batch_size, **kwargs)
