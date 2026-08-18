@@ -9,3 +9,9 @@ LibriSpeech/*
 *.tsv
 *.tex
 *.hd5
+
+# real credentials - see pod-setup/README.md
+pod-setup/env.local.sh
+
+__pycache__/
+*.pyc

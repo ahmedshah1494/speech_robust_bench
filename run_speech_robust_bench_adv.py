@@ -36,11 +36,15 @@ en_models = [
     ('microsoft/speecht5_asr', ''),
     ('facebook/hubert-xlarge-ls960-ft', ''),
     ('openai/whisper-large-v2', ''),
+    ('openai/whisper-large-v3', ''),
     ('nvidia/canary-1b', ''),
     ('facebook/mms-1b-fl102', ''),
     ('nvidia/parakeet-ctc-1.1b', ''),
     ('nvidia/parakeet-rnnt-1.1b', ''),
     ('nvidia/parakeet-rnnt-0.6b', ''),
+    ('ibm-granite/granite-speech-4.1-2b', ''),
+    ('Qwen/Qwen3-ASR-1.7B-hf', ''),
+    ('CohereLabs/cohere-transcribe-03-2026', ''),
 ]
 
 es_models = [
@@ -81,6 +85,13 @@ def create_pgd_cmd(model, snr):
         cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/{model.replace("nvidia/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
         if args.dataset == 'MLS-ES':
             cmd += ' --lang es'
+    elif model.startswith('ibm-granite/'):
+        cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/{model.replace("ibm-granite/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
+    elif model.startswith('Qwen/'):
+        model_file = model.replace('Qwen/', '').lower()
+        cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/{model_file}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
+    elif model.startswith('CohereLabs/'):
+        cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/{model.replace("CohereLabs/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
     else:
         repo, model = model.split('/')
         cmd = f'python evaluate.py attack_configs/LibriSpeech/pgd/hf.yaml --root={args.data_root} --model_repo={repo} --model_name={model} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
@@ -100,6 +111,13 @@ def create_universal_cmd(model, snr):
         cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/{model.replace("nvidia/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
         if args.dataset == 'MLS-ES':
             cmd += ' --lang es'
+    elif model.startswith('ibm-granite/'):
+        cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/{model.replace("ibm-granite/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
+    elif model.startswith('Qwen/'):
+        model_file = model.replace('Qwen/', '').lower()
+        cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/{model_file}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
+    elif model.startswith('CohereLabs/'):
+        cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/{model.replace("CohereLabs/","")}.yaml --root={args.data_root} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
     else:
         repo, model = model.split('/')
         cmd = f'python fit_attacker.py attack_configs/LibriSpeech/universal/hf.yaml --root={args.data_root} --model_repo={repo} --model_name={model} --snr={snr} --dataset {args.dataset} --data_csv_name {args.data_csv_name}'
